@@ -33,18 +33,18 @@ useful example. It's fewer bytes than this README.md is.
 Installation
 ============
 
-    go get -v -u github.com/thejerf/markdir
+    go get -v -u github.com/weaming/markdir
     ./markdir -h  # see the default flag help file
     ./markdir     # serves the directory
 
 The `-v` is just to show you what is being installed, since this is a
 learning exercise. `-u` says to update if necessary.
 
-Navigate to [http://localhost:19000](http://localhost:19000) by default to
+Navigate to [http://localhost:10200](http://localhost:10200) by default to
 see the server. You may need to find some markdown files to see the program
 doing anything useful, though. If you start it up in the directory this
 repo clones into, you can go
-to [http://localhost:19000/README.md](http://localhost:19000/README.md) to
+to [http://localhost:10200/README.md](http://localhost:10200/README.md) to
 read this very file through the server.
 
 Security
@@ -70,6 +70,7 @@ to use read, write, and idle timeouts. As those appeared in net/http in Go
 Release History
 ===============
 
+  * v1.0.3: better CSS; change default listen port.
   * v1.0.2: Internal changes as suggested by Reddit.
   * v1.0.1: Internal rename to make this lint-clean by my gometalinter standards.
   * v1.0: Initial release.
