@@ -44,7 +44,7 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, "Internal Server Error", 500)
 		log.Fatalf("Couldn't read path %s: %v", req.URL.Path, err)
 	}
-	output := blackfriday.MarkdownCommon(input)
+	output := blackfriday.Run(input)
 
 	rw.Header().Set("Content-Type", "text/html")
 

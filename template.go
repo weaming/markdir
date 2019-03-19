@@ -1028,5 +1028,4 @@ const MDTemplate = `
       {{.Body}}
     </div>
   </body>
-</html>
-}`
+</html>`
