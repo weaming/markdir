@@ -31,9 +31,19 @@ type renderer struct {
 	h http.Handler
 }
 
+func isDir(req *http.Request) bool {
+	return strings.HasSuffix(req.URL.Path, "/")
+}
+
 func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if !strings.HasSuffix(req.URL.Path, ".md") {
+		if isDir(req) {
+			rw.Write([]byte(MDTemplateIndex))
+		}
 		r.h.ServeHTTP(rw, req)
+		if isDir(req) {
+			rw.Write([]byte(MDTemplateIndexTail))
+		}
 		return
 	}
 
