@@ -12,7 +12,7 @@ import (
 	"github.com/russross/blackfriday"
 )
 
-var bind = flag.String("bind", "127.0.0.1:19000", "port to run the server on")
+var bind = flag.String("bind", "127.0.0.1:10200", "listen host:port")
 
 func main() {
 	flag.Parse()
@@ -20,20 +20,11 @@ func main() {
 	httpdir := http.Dir(".")
 	handler := renderer{httpdir, http.FileServer(httpdir)}
 
-	fmt.Println("Serving")
+	fmt.Printf("Serving on http://%v\n", *bind)
 	log.Fatal(http.ListenAndServe(*bind, handler))
 }
 
-var outputTemplate = template.Must(template.New("base").Parse(`
-<html>
-  <head>
-    <title>{{ .Path }}</title>
-  </head>
-  <body>
-    {{ .Body }}
-  </body>
-</html>
-`))
+var outputTemplate = template.Must(template.New("base").Parse(MDTemplate))
 
 type renderer struct {
 	d http.Dir
