@@ -32,6 +32,10 @@ const MDTemplateIndex = `
 		box-sizing: border-box;
 	  }
 
+	  .markdown-body table code {
+        word-break: break-word;
+      }
+
       .markdown-body a {
         background: transparent;
         color: #4183c4;
