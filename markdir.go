@@ -52,8 +52,9 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		// so this is not a directory traversal, at least by my testing
 		input, err := ioutil.ReadFile("." + req.URL.Path)
 		if err != nil {
-			http.Error(rw, "Internal Server Error", 500)
-			log.Fatalf("Couldn't read path %s: %v", req.URL.Path, err)
+			http.Error(rw, "not found", 404)
+			log.Printf("Couldn't read path %s: %v\n", req.URL.Path, err)
+			return
 		}
 		output := blackfriday.Run(input)
 
@@ -69,8 +70,9 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	} else if hasSuffix(req.URL.Path, codeExtensions) {
 		content, err := ioutil.ReadFile("." + req.URL.Path)
 		if err != nil {
-			http.Error(rw, "Internal Server Error", 500)
-			log.Fatalf("Couldn't read path %s: %v", req.URL.Path, err)
+			http.Error(rw, "not found", 404)
+			log.Printf("Couldn't read path %s: %v\n", req.URL.Path, err)
+			return
 		}
 
 		rw.Header().Set("Content-Type", "text/plain")
