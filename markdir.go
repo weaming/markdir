@@ -7,12 +7,14 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/russross/blackfriday"
 )
 
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
+var showHidden = flag.Bool("all", false, "show hide directories")
 
 func main() {
 	flag.Parse()
@@ -78,6 +80,15 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("Content-Type", "text/plain")
 		rw.Write(content)
 	} else {
+		if isDir(req) {
+			name := filepath.Base(req.URL.Path)
+			if len(name) >= 2 && name[0] == '.' && name[1] != '.' {
+				if !*showHidden {
+					http.Error(rw, "not found", 404)
+					return
+				}
+			}
+		}
 		if isDir(req) {
 			rw.Write([]byte(MDTemplateIndex))
 		}
