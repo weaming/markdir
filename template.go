@@ -472,8 +472,7 @@ const MDTemplate = `
         display: block;
         width: 100%;
         overflow: auto;
-        word-break: normal;
-        word-break: keep-all;
+        word-break: break-word;
       }
 
       .markdown-body table th {
