@@ -77,7 +77,7 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		rw.Header().Set("Content-Type", "text/plain")
+		rw.Header().Set("Content-Type", "text/plain; charset=UTF-8")
 		rw.Write(content)
 	} else {
 		if isDir(req) {
