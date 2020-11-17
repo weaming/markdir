@@ -5,7 +5,7 @@ It's sort of the most degenerate Wiki you could imagine writing short of simply 
 
 ## Installation
 
-    go get -u github.com/weaming/markdir
+    go get -u github.com/weaming/markdir@HEAD
 
     Usage of markdir:
       -bind string
