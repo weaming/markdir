@@ -2,11 +2,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -22,7 +22,7 @@ func main() {
 	httpdir := http.Dir(".")
 	handler := renderer{httpdir, http.FileServer(httpdir)}
 
-	fmt.Printf("Serving on http://%v\n", *listen)
+	log.Printf("Serving on http://%v\n", *listen)
 	log.Fatal(http.ListenAndServe(*listen, handler))
 }
 
@@ -49,7 +49,7 @@ func hasSuffix(text string, list []string) bool {
 var codeExtensions = []string{".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv", ".json", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp", ".log", ".map", ".mod", ".sh", ".bash", ".txt", ".xml", ".py", ".go", ".rs", ".coffee", ".conf", ".config", "cpp", "cr", "css", "d", "dart", "exmaple", "fish", "gradle", "h", "jade", "json5", "jsx", "key", "less", "m4", "markdown", "md", "patch", "pem", "plist", "properties", "pub", "pug", "rb", "rc", "sass", "scpt", "scss", "sql", "template", "todo", "toml", "ts", "tsx", "vim", "vue", "xhtml", "xml"}
 
 func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if strings.HasSuffix(req.URL.Path, ".md") {
+	if strings.HasSuffix(req.URL.Path, ".md") || strings.HasSuffix(req.URL.Path, "/Guide") {
 		// net/http is already running a path.Clean on the req.URL.Path,
 		// so this is not a directory traversal, at least by my testing
 		input, err := ioutil.ReadFile("." + req.URL.Path)
@@ -60,14 +60,20 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		output := blackfriday.Run(input)
 
-		rw.Header().Set("Content-Type", "text/html")
+		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 
+		hasCustomCSS := false
+		if _, err := os.Stat("index.css"); err == nil {
+			hasCustomCSS = true
+		}
 		outputTemplate.Execute(rw, struct {
-			Path string
-			Body template.HTML
+			Path         string
+			Body         template.HTML
+			HasCustomCSS bool
 		}{
-			Path: req.URL.Path,
-			Body: template.HTML(string(output)),
+			Path:         req.URL.Path,
+			Body:         template.HTML(string(output)),
+			HasCustomCSS: hasCustomCSS,
 		})
 	} else if hasSuffix(req.URL.Path, codeExtensions) {
 		content, err := ioutil.ReadFile("." + req.URL.Path)
@@ -90,7 +96,11 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if isDir(req) {
-			rw.Write([]byte(MDTemplateIndex))
+			out := MDTemplateIndex
+			if _, err := os.Stat("index.css"); err == nil {
+				out = strings.Replace(out, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
+			}
+			rw.Write([]byte(out))
 		}
 		r.h.ServeHTTP(rw, req)
 		if isDir(req) {

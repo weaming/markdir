@@ -6,6 +6,7 @@ const MDTemplate = `
 	<meta http-equiv="content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ .Path }}</title>
+    {{ if .HasCustomCSS }}<link rel="stylesheet" href="/index.css">{{ end }}
     <style>
       body {
         max-width: 980px;
