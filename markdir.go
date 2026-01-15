@@ -15,6 +15,7 @@ import (
 
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
 var showHidden = flag.Bool("all", false, "show hide directories")
+var noIndex = flag.String("no-index", "", "comma separated list of directories to disable listing")
 
 func main() {
 	flag.Parse()
@@ -40,6 +41,19 @@ func isDir(req *http.Request) bool {
 func hasSuffix(text string, list []string) bool {
 	for _, s := range list {
 		if strings.HasSuffix(text, s) {
+			return true
+		}
+	}
+	return false
+}
+
+func isNoIndex(path string) bool {
+	if *noIndex == "" {
+		return false
+	}
+	parts := strings.Split(*noIndex, ",")
+	for _, part := range parts {
+		if strings.TrimSpace(part) == path {
 			return true
 		}
 	}
@@ -87,6 +101,11 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Write(content)
 	} else {
 		if isDir(req) {
+			if isNoIndex(req.URL.Path) {
+				rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+				rw.Write([]byte("<h3>Current directory does not support listing</h3>"))
+				return
+			}
 			name := filepath.Base(req.URL.Path)
 			if len(name) >= 2 && name[0] == '.' && name[1] != '.' {
 				if !*showHidden {
