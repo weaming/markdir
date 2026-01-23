@@ -60,16 +60,56 @@ func isNoIndex(path string) bool {
 	return false
 }
 
-var codeExtensions = []string{".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv", ".json", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp", ".log", ".map", ".mod", ".sh", ".bash", ".txt", ".xml", ".py", ".go", ".rs", ".coffee", ".conf", ".config", "cpp", "cr", "css", "d", "dart", "exmaple", "fish", "gradle", "h", "jade", "json5", "jsx", "key", "less", "m4", "markdown", "md", "patch", "pem", "plist", "properties", "pub", "pug", "rb", "rc", "sass", "scpt", "scss", "sql", "template", "todo", "toml", "ts", "tsx", "vim", "vue", "xhtml", "xml"}
+var codeExtensions = []string{
+	".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv",
+	".json", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp",
+	".log", ".map", ".mod", ".sh", ".bash", ".txt", ".xml", ".py", ".go", ".rs",
+	".coffee", ".conf", ".config", ".cr", ".css", ".d", ".dart", ".fish", ".gradle",
+	".jade", ".json5", ".jsx", ".key", ".less", ".m4", ".markdown", ".md", ".patch",
+	".pem", ".plist", ".properties", ".pub", ".pug", ".rb", ".rc", ".sass", ".scpt",
+	".scss", ".sql", ".template", ".todo", ".toml", ".ts", ".tsx", ".vim", ".vue",
+	".xhtml",
+}
 
 func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	if strings.HasSuffix(req.URL.Path, ".md") || strings.HasSuffix(req.URL.Path, "/Guide") {
-		// net/http is already running a path.Clean on the req.URL.Path,
-		// so this is not a directory traversal, at least by my testing
-		input, err := ioutil.ReadFile("." + req.URL.Path)
+	path := req.URL.Path
+
+	// 1. Check for directory
+	if isDir(req) {
+		if isNoIndex(path) {
+			rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+			rw.Write([]byte("<h3>Current directory does not support listing</h3>"))
+			return
+		}
+
+		name := filepath.Base(path)
+		if len(name) >= 2 && name[0] == '.' && name[1] != '.' {
+			if !*showHidden {
+				http.Error(rw, "not found", 404)
+				return
+			}
+		}
+
+		// Pre-render directory listing parts
+		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+		outHead := MDTemplateIndex
+		if _, err := os.Stat("index.css"); err == nil {
+			outHead = strings.Replace(outHead, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
+		}
+		rw.Write([]byte(outHead))
+
+		r.h.ServeHTTP(rw, req)
+
+		rw.Write([]byte(MDTemplateIndexTail))
+		return
+	}
+
+	// 2. Handle Markdown files
+	if strings.HasSuffix(path, ".md") || strings.HasSuffix(path, "/Guide") {
+		input, err := ioutil.ReadFile("." + path)
 		if err != nil {
 			http.Error(rw, "not found", 404)
-			log.Printf("Couldn't read path %s: %v\n", req.URL.Path, err)
+			log.Printf("Couldn't read path %s: %v\n", path, err)
 			return
 		}
 		output := blackfriday.Run(input)
@@ -85,45 +125,27 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			Body         template.HTML
 			HasCustomCSS bool
 		}{
-			Path:         req.URL.Path,
+			Path:         path,
 			Body:         template.HTML(string(output)),
 			HasCustomCSS: hasCustomCSS,
 		})
-	} else if hasSuffix(req.URL.Path, codeExtensions) {
-		content, err := ioutil.ReadFile("." + req.URL.Path)
+		return
+	}
+
+	// 3. Handle Code files
+	if hasSuffix(path, codeExtensions) {
+		content, err := ioutil.ReadFile("." + path)
 		if err != nil {
 			http.Error(rw, "not found", 404)
-			log.Printf("Couldn't read path %s: %v\n", req.URL.Path, err)
+			log.Printf("Couldn't read path %s: %v\n", path, err)
 			return
 		}
 
 		rw.Header().Set("Content-Type", "text/plain; charset=UTF-8")
 		rw.Write(content)
-	} else {
-		if isDir(req) {
-			if isNoIndex(req.URL.Path) {
-				rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-				rw.Write([]byte("<h3>Current directory does not support listing</h3>"))
-				return
-			}
-			name := filepath.Base(req.URL.Path)
-			if len(name) >= 2 && name[0] == '.' && name[1] != '.' {
-				if !*showHidden {
-					http.Error(rw, "not found", 404)
-					return
-				}
-			}
-		}
-		if isDir(req) {
-			out := MDTemplateIndex
-			if _, err := os.Stat("index.css"); err == nil {
-				out = strings.Replace(out, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
-			}
-			rw.Write([]byte(out))
-		}
-		r.h.ServeHTTP(rw, req)
-		if isDir(req) {
-			rw.Write([]byte(MDTemplateIndexTail))
-		}
+		return
 	}
+
+	// 4. Default: serve as is
+	r.h.ServeHTTP(rw, req)
 }
