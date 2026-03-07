@@ -2,12 +2,14 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/russross/blackfriday"
@@ -16,12 +18,17 @@ import (
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
 var showHidden = flag.Bool("all", false, "show hide directories")
 var noIndex = flag.String("no-index", "", "comma separated list of directories to disable listing")
+var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 
 func main() {
 	flag.Parse()
 
 	httpdir := http.Dir(".")
-	handler := renderer{httpdir, http.FileServer(httpdir)}
+	handler := renderer{
+		dir:     httpdir,
+		handler: http.FileServer(httpdir),
+		reverse: *reverseSort,
+	}
 
 	log.Printf("Serving on http://%v\n", *listen)
 	log.Fatal(http.ListenAndServe(*listen, handler))
@@ -30,8 +37,9 @@ func main() {
 var outputTemplate = template.Must(template.New("base").Parse(MDTemplate))
 
 type renderer struct {
-	d http.Dir
-	h http.Handler
+	dir     http.Dir
+	handler http.Handler
+	reverse bool
 }
 
 func isDir(req *http.Request) bool {
@@ -98,7 +106,11 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 		rw.Write([]byte(outHead))
 
-		r.h.ServeHTTP(rw, req)
+		if r.reverse {
+			r.serveDirectoryReverse(rw, req)
+		} else {
+			r.handler.ServeHTTP(rw, req)
+		}
 
 		rw.Write([]byte(MDTemplateIndexTail))
 		return
@@ -147,5 +159,31 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// 4. Default: serve as is
-	r.h.ServeHTTP(rw, req)
+	r.handler.ServeHTTP(rw, req)
+}
+
+func (r renderer) serveDirectoryReverse(rw http.ResponseWriter, req *http.Request) {
+	path := req.URL.Path
+
+	fullPath := "." + path
+	entries, err := ioutil.ReadDir(fullPath)
+	if err != nil {
+		http.Error(rw, "cannot read directory", http.StatusInternalServerError)
+		return
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Name() > entries[j].Name()
+	})
+
+	rw.Write([]byte("<pre>\n"))
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() {
+			name += "/"
+		}
+		url := req.URL.Path + name
+		rw.Write([]byte(fmt.Sprintf("<a href=\"%s\">%s</a>\n", url, name)))
+	}
+	rw.Write([]byte("</pre>\n"))
 }
