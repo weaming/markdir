@@ -8,15 +8,16 @@ const MDTemplate = `
     <title>{{ .Path }}</title>
     {{ if .HasCustomCSS }}<link rel="stylesheet" href="/index.css">{{ end }}
     <style>
+      /* 移动端默认样式（手机） */
       body {
-        max-width: 980px;
-        border: 1px solid #ddd;
-        outline: 1300px solid #fff;
-        margin: 16px auto;
+        max-width: 100%;
+        margin: 8px auto;
+        border: none;
+        outline: none;
       }
 
       body .markdown-body {
-        padding: 45px;
+        padding: 16px;
       }
 
       @font-face {
@@ -918,6 +919,189 @@ const MDTemplate = `
       .markdown-body .task-list-item input {
         margin: 0 4px 0.25em -20px;
         vertical-align: middle;
+      }
+
+      /* 手机端样式 */
+      @media only screen and (max-width: 479px) {
+        body {
+          max-width: 100%;
+          margin: 8px auto;
+          border: none;
+          outline: none;
+        }
+
+        body .markdown-body {
+          padding: 20px;
+        }
+
+        .markdown-body {
+          font-size: 15px;
+          line-height: 1.6;
+        }
+
+        .markdown-body h1 {
+          font-size: 1.8em;
+          margin: 1em 0 0.5em;
+        }
+
+        .markdown-body h2 {
+          font-size: 1.5em;
+          margin: 1em 0 0.5em;
+        }
+
+        .markdown-body h3 {
+          font-size: 1.25em;
+          margin: 0.8em 0 0.4em;
+        }
+
+        .markdown-body h4 {
+          font-size: 1.1em;
+          margin: 0.8em 0 0.4em;
+        }
+
+        .markdown-body p,
+        .markdown-body ul,
+        .markdown-body ol {
+          margin-bottom: 14px;
+        }
+
+        .markdown-body pre,
+        .markdown-body code {
+          font-size: 13px;
+        }
+
+        .markdown-body pre {
+          padding: 14px;
+          margin-bottom: 14px;
+          overflow-x: scroll;
+        }
+
+        .markdown-body table {
+          display: block;
+          overflow-x: auto;
+          margin-bottom: 14px;
+        }
+
+        .markdown-body ul,
+        .markdown-body ol {
+          padding-left: 1.5em;
+        }
+
+        .markdown-body img {
+          max-width: 100%;
+          height: auto;
+        }
+
+        .markdown-body blockquote {
+          padding: 8px 12px;
+          margin: 14px 0;
+        }
+
+        .markdown-body hr {
+          margin: 20px 0;
+        }
+
+        .markdown-body .progress {
+          width: 100%;
+          max-width: 100%;
+          margin: 14px 0;
+        }
+      }
+
+      /* 平板样式 */
+      @media only screen and (min-width: 480px) and (max-width: 1023px) {
+        body {
+          max-width: 100%;
+          margin: 12px auto;
+          border: 1px solid #ddd;
+          outline: 12px solid #fff;
+        }
+
+        body .markdown-body {
+          padding: 32px;
+        }
+
+        .markdown-body {
+          font-size: 16px;
+          line-height: 1.65;
+        }
+
+        .markdown-body h1 {
+          font-size: 2em;
+          margin: 1.2em 0 0.6em;
+        }
+
+        .markdown-body h2 {
+          font-size: 1.65em;
+          margin: 1.1em 0 0.55em;
+        }
+
+        .markdown-body h3 {
+          font-size: 1.35em;
+          margin: 1em 0 0.5em;
+        }
+
+        .markdown-body p,
+        .markdown-body ul,
+        .markdown-body ol {
+          margin-bottom: 16px;
+        }
+
+        .markdown-body pre {
+          padding: 16px;
+          margin-bottom: 16px;
+        }
+
+        .markdown-body table {
+          display: block;
+          overflow-x: auto;
+          margin-bottom: 16px;
+        }
+      }
+
+      /* 电脑端样式 */
+      @media only screen and (min-width: 1024px) {
+        body {
+          max-width: 980px;
+          margin: 16px auto;
+          border: 1px solid #ddd;
+          outline: 1300px solid #fff;
+        }
+
+        body .markdown-body {
+          padding: 48px;
+        }
+
+        .markdown-body {
+          font-size: 17px;
+          line-height: 1.7;
+        }
+
+        .markdown-body h1 {
+          font-size: 2.2em;
+          margin: 1.3em 0 0.65em;
+        }
+
+        .markdown-body h2 {
+          font-size: 1.75em;
+          margin: 1.2em 0 0.6em;
+        }
+
+        .markdown-body h3 {
+          font-size: 1.4em;
+          margin: 1.1em 0 0.55em;
+        }
+
+        .markdown-body p,
+        .markdown-body ul,
+        .markdown-body ol {
+          margin-bottom: 18px;
+        }
+
+        .markdown-body pre {
+          padding: 18px;
+          margin-bottom: 18px;
+        }
       }
 
       /* Media */
