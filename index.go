@@ -7,88 +7,67 @@ const MDTemplateIndex = `
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Directory</title>
     <style>
+      * {
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
+      }
+
       body {
-        max-width: 980px;
-        border: 1px solid #ddd;
-        outline: 1300px solid #fff;
-        margin: 16px auto;
+        margin: 0;
+        padding: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.5;
+        color: #24292e;
+        background: #fafbfc;
       }
 
       .markdown-body {
-        padding: 45px;
-        font-family: sans-serif;
-        -ms-text-size-adjust: 100%;
-        -webkit-text-size-adjust: 100%;
-        color: #333333;
-        overflow: hidden;
-        font-family: "Helvetica Neue", Helvetica, "Segoe UI", Arial, freesans, sans-serif;
-        font-size: 16px;
-        line-height: 1.6;
-        word-wrap: break-word;
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 30px 45px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
       }
 
-	  .markdown-body * {
-		-webkit-box-sizing: border-box;
-		box-sizing: border-box;
-	  }
-
       .markdown-body a {
-        background: transparent;
-        color: #4183c4;
+        color: #0366d6;
         text-decoration: none;
       }
 
-	  .markdown-body a:visited {
-		color: #85C1E9;
-	  }
-
-      .markdown-body a:active,
       .markdown-body a:hover {
-        outline: 0;
-      }
-
-      .markdown-body a:hover,
-      .markdown-body a:focus,
-      .markdown-body a:active {
         text-decoration: underline;
       }
 
-      @media print {
-        .markdown-body * {
-          background: transparent !important;
-          color: black !important;
-          filter: none !important;
-          -ms-filter: none !important;
+      .markdown-body a:visited {
+        color: #0366d6;
+      }
+
+      @media (max-width: 600px) {
+        body {
+          padding: 0;
+          font-size: 15px;
         }
 
         .markdown-body {
-          font-size: 12pt;
+          padding: 18px 16px;
+          border-radius: 0;
+          box-shadow: none;
+        }
+      }
+
+      @media print {
+        body {
+          background: #fff;
+          padding: 0;
+        }
+
+        .markdown-body {
+          box-shadow: none;
           max-width: 100%;
-          outline: none;
-          border: 0;
-        }
-
-        .markdown-body a,
-        .markdown-body a:visited {
-          text-decoration: underline;
-        }
-
-        .markdown-body a[href]:after {
-          content: " (" attr(href) ")";
-        }
-
-        .markdown-body a[href^="javascript:"]:after,
-        .markdown-body a[href^="#"]:after {
-          content: "";
-        }
-
-        .markdown-body pre {
-          white-space: pre;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-          border: 1px solid #999;
-          padding-right: 1em;
-          page-break-inside: avoid;
+          padding: 20px 0;
+          border-radius: 0;
         }
       }
     </style>

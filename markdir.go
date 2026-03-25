@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"html/template"
@@ -12,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/russross/blackfriday"
+	"github.com/yuin/goldmark"
 )
 
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
@@ -35,6 +36,8 @@ func main() {
 }
 
 var outputTemplate = template.Must(template.New("base").Parse(MDTemplate))
+
+var md = goldmark.New()
 
 type renderer struct {
 	dir     http.Dir
@@ -124,7 +127,13 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			log.Printf("Couldn't read path %s: %v\n", path, err)
 			return
 		}
-		output := blackfriday.Run(input)
+		var buf bytes.Buffer
+		if err := md.Convert(input, &buf); err != nil {
+			http.Error(rw, "markdown parsing failed", 500)
+			log.Printf("Couldn't parse markdown %s: %v\n", path, err)
+			return
+		}
+		output := buf.Bytes()
 
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 
