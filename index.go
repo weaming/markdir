@@ -25,9 +25,9 @@ const MDTemplateIndex = `
       .markdown-body {
         max-width: 1100px;
         margin: 0 auto;
-        padding: 30px 45px;
+        padding: 20px 28px;
         background: #fff;
-        border-radius: 8px;
+        border-radius: 6px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
       }
 

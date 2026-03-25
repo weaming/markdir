@@ -26,9 +26,9 @@ const MDTemplate = `
       .markdown-body {
         max-width: 1000px;
         margin: 0 auto;
-        padding: 35px 50px;
+        padding: 24px 32px;
         background: #fff;
-        border-radius: 8px;
+        border-radius: 6px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.08);
       }
 
@@ -109,7 +109,7 @@ const MDTemplate = `
 
       .markdown-body ul,
       .markdown-body ol {
-        padding-left: 2em;
+        padding-left: 1.5em;
         margin-top: 0;
         margin-bottom: 4px;
       }
@@ -132,7 +132,7 @@ const MDTemplate = `
       }
 
       .markdown-body blockquote {
-        padding: 0 15px;
+        padding: 0 12px;
         margin: 0 0 8px;
         color: #6a737d;
         border-left: 4px solid #dfe2e5;
@@ -156,7 +156,7 @@ const MDTemplate = `
       }
 
       .markdown-body pre {
-        padding: 14px;
+        padding: 12px;
         margin-bottom: 8px;
         overflow: auto;
         font-size: 85%;
@@ -184,7 +184,7 @@ const MDTemplate = `
 
       .markdown-body table th,
       .markdown-body table td {
-        padding: 6px 13px;
+        padding: 5px 10px;
         border: 1px solid #dfe2e5;
       }
 
