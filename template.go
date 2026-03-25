@@ -43,10 +43,23 @@ const MDTemplate = `
       .markdown-body a {
         color: #0366d6;
         text-decoration: none;
+        border-bottom: 1px solid transparent;
+        transition: color 0.2s ease, border-color 0.2s ease;
       }
 
       .markdown-body a:hover {
-        text-decoration: underline;
+        color: #0256b9;
+        border-bottom-color: #0256b9;
+        text-decoration: none;
+      }
+
+      .markdown-body a:visited {
+        color: #8b5cf6;
+      }
+
+      .markdown-body a:visited:hover {
+        color: #6d42e6;
+        border-bottom-color: #6d42e6;
       }
 
       .markdown-body h1,
