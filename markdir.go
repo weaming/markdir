@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 )
 
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
@@ -37,7 +38,14 @@ func main() {
 
 var outputTemplate = template.Must(template.New("base").Parse(MDTemplate))
 
-var md = goldmark.New()
+var md = goldmark.New(
+	goldmark.WithExtensions(
+		extension.GFM,           // 表格、删除线、任务列表、自动链接
+		extension.Typographer,  // 智能标点
+		extension.Linkify,      // URL 自动链接
+		extension.NewCJK(),      // CJK 换行优化
+	),
+)
 
 type renderer struct {
 	dir     http.Dir
