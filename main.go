@@ -27,8 +27,9 @@ var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
 var columns = flag.Int("columns", 1, "number of columns for directory listing on desktop")
+var exts = flag.String("exts", "", "comma separated extensions to show in listing, e.g. 'json,md,jsonl' (dirs always shown)")
 
-func generateTOC(path string) map[string]string {
+func generateTOC(path string, extFilter []string) map[string]string {
 	meta := map[string]string{}
 
 	err := filepath.WalkDir(".", func(p string, d os.DirEntry, err error) error {
@@ -43,6 +44,9 @@ func generateTOC(path string) map[string]string {
 			return filepath.SkipDir
 		}
 		urlPath := "/" + filepath.ToSlash(p) + "/"
+		if len(extFilter) > 0 && !dirContainsExts(urlPath, extFilter) {
+			return nil
+		}
 		meta[urlPath] = d.Name() + "/"
 		return nil
 	})
@@ -61,13 +65,13 @@ func generateTOC(path string) map[string]string {
 	return meta
 }
 
-func loadTOC(path string) map[string]string {
+func loadTOC(path string, extFilter []string) map[string]string {
 	if path == "" {
 		return nil
 	}
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		return generateTOC(path)
+		return generateTOC(path, extFilter)
 	}
 	if err != nil {
 		log.Fatalf("cannot read toc file %s: %v", path, err)
@@ -89,7 +93,8 @@ func main() {
 		reverse:  *reverseSort,
 		hideIcon: *hideIcon,
 		columns:  *columns,
-		toc:      loadTOC(*tocFile),
+		exts:     parseExts(*exts),
+		toc:      loadTOC(*tocFile, parseExts(*exts)),
 	}
 	if *tocFile != "" {
 		go handler.watchTOC(*tocFile)
@@ -120,6 +125,7 @@ type renderer struct {
 	reverse  bool
 	hideIcon bool
 	columns  int
+	exts     []string
 	tocMu    sync.RWMutex
 	toc      map[string]string
 }
@@ -159,6 +165,41 @@ func (r *renderer) watchTOC(path string) {
 		r.tocMu.Unlock()
 		log.Printf("toc reloaded: %s", path)
 	}
+}
+
+func dirContainsExts(urlPath string, exts []string) bool {
+	fsPath := "." + urlPath
+	found := false
+	filepath.WalkDir(fsPath, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		if hasSuffix(strings.ToLower(d.Name()), exts) {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+func parseExts(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if !strings.HasPrefix(p, ".") {
+			p = "." + p
+		}
+		result = append(result, strings.ToLower(p))
+	}
+	return result
 }
 
 func isIconFile(name string) bool {
@@ -320,6 +361,15 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		name := entry.Name()
 		if r.hideIcon && isIconFile(name) {
 			continue
+		}
+		if len(r.exts) > 0 {
+			if entry.IsDir() {
+				if !dirContainsExts(req.URL.Path+name+"/", r.exts) {
+					continue
+				}
+			} else if !hasSuffix(strings.ToLower(name), r.exts) {
+				continue
+			}
 		}
 		if entry.IsDir() {
 			name += "/"
