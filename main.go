@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -12,6 +13,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -22,16 +25,72 @@ var showHidden = flag.Bool("all", false, "show hide directories")
 var noIndex = flag.String("no-index", "", "comma separated list of directories to disable listing")
 var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
+var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
+
+func generateTOC(path string) map[string]string {
+	meta := map[string]string{}
+
+	err := filepath.WalkDir(".", func(p string, d os.DirEntry, err error) error {
+		if err != nil || !d.IsDir() || p == "." {
+			return err
+		}
+		if strings.HasPrefix(d.Name(), ".") {
+			return filepath.SkipDir
+		}
+		depth := strings.Count(filepath.ToSlash(p), "/") + 1
+		if depth > 2 {
+			return filepath.SkipDir
+		}
+		urlPath := "/" + filepath.ToSlash(p) + "/"
+		meta[urlPath] = d.Name() + "/"
+		return nil
+	})
+	if err != nil {
+		log.Fatalf("cannot scan directories for toc: %v", err)
+	}
+
+	data, err := json.MarshalIndent(meta, "", "  ")
+	if err != nil {
+		log.Fatalf("cannot marshal toc: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		log.Fatalf("cannot write toc file %s: %v", path, err)
+	}
+	log.Printf("Generated toc file: %s", path)
+	return meta
+}
+
+func loadTOC(path string) map[string]string {
+	if path == "" {
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return generateTOC(path)
+	}
+	if err != nil {
+		log.Fatalf("cannot read toc file %s: %v", path, err)
+	}
+	var toc map[string]string
+	if err := json.Unmarshal(data, &toc); err != nil {
+		log.Fatalf("cannot parse toc file %s: %v", path, err)
+	}
+	return toc
+}
 
 func main() {
 	flag.Parse()
 
 	httpdir := http.Dir(".")
-	handler := renderer{
+	handler := &renderer{
 		dir:      httpdir,
 		handler:  http.FileServer(httpdir),
 		reverse:  *reverseSort,
 		hideIcon: *hideIcon,
+		toc:      loadTOC(*tocFile),
+	}
+	if *tocFile != "" {
+		go handler.watchTOC(*tocFile)
 	}
 
 	log.Printf("Serving on http://%v\n", *listen)
@@ -42,10 +101,10 @@ var outputTemplate = template.Must(template.New("base").Parse(MDTemplate))
 
 var md = goldmark.New(
 	goldmark.WithExtensions(
-		extension.GFM,           // 表格、删除线、任务列表、自动链接
-		extension.Typographer,  // 智能标点
-		extension.Linkify,      // URL 自动链接
-		extension.NewCJK(),      // CJK 换行优化
+		extension.GFM,         // 表格、删除线、任务列表、自动链接
+		extension.Typographer, // 智能标点
+		extension.Linkify,     // URL 自动链接
+		extension.NewCJK(),    // CJK 换行优化
 	),
 )
 
@@ -58,6 +117,45 @@ type renderer struct {
 	handler  http.Handler
 	reverse  bool
 	hideIcon bool
+	tocMu    sync.RWMutex
+	toc      map[string]string
+}
+
+func (r *renderer) getTOC(key string) (string, bool) {
+	r.tocMu.RLock()
+	defer r.tocMu.RUnlock()
+	v, ok := r.toc[key]
+	return v, ok
+}
+
+func (r *renderer) watchTOC(path string) {
+	var lastMod time.Time
+	if info, err := os.Stat(path); err == nil {
+		lastMod = info.ModTime()
+	}
+
+	for range time.Tick(2 * time.Second) {
+		info, err := os.Stat(path)
+		if err != nil || !info.ModTime().After(lastMod) {
+			continue
+		}
+		lastMod = info.ModTime()
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("toc reload: cannot read %s: %v", path, err)
+			continue
+		}
+		var toc map[string]string
+		if err := json.Unmarshal(data, &toc); err != nil {
+			log.Printf("toc reload: cannot parse %s: %v", path, err)
+			continue
+		}
+		r.tocMu.Lock()
+		r.toc = toc
+		r.tocMu.Unlock()
+		log.Printf("toc reloaded: %s", path)
+	}
 }
 
 func isIconFile(name string) bool {
@@ -98,7 +196,7 @@ func isNoIndex(path string) bool {
 
 var codeExtensions = []string{
 	".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv",
-	".json", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp",
+	".json", ".jsonl", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp",
 	".log", ".map", ".mod", ".sh", ".bash", ".txt", ".xml", ".py", ".go", ".rs",
 	".coffee", ".conf", ".config", ".cr", ".css", ".d", ".dart", ".fish", ".gradle",
 	".jade", ".json5", ".jsx", ".key", ".less", ".m4", ".markdown", ".md", ".patch",
@@ -107,7 +205,7 @@ var codeExtensions = []string{
 	".xhtml",
 }
 
-func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 
 	// 1. Check for directory
@@ -196,7 +294,7 @@ func (r renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	r.handler.ServeHTTP(rw, req)
 }
 
-func (r renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Request, reverse bool) {
+func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Request, reverse bool) {
 	fullPath := "." + req.URL.Path
 	entries, err := ioutil.ReadDir(fullPath)
 	if err != nil {
@@ -220,8 +318,12 @@ func (r renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reques
 		if entry.IsDir() {
 			name += "/"
 		}
-		url := req.URL.Path + name
-		fmt.Fprintf(rw, "<a href=\"%s\">%s</a>\n", url, name)
+		urlPath := req.URL.Path + name
+		displayName := name
+		if label, ok := r.getTOC(urlPath); ok {
+			displayName = label
+		}
+		fmt.Fprintf(rw, "<a href=\"%s\">%s</a>\n", urlPath, displayName)
 	}
 	rw.Write([]byte("</pre>\n"))
 }
