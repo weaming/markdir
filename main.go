@@ -26,6 +26,7 @@ var noIndex = flag.String("no-index", "", "comma separated list of directories t
 var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
+var columns = flag.Int("columns", 1, "number of columns for directory listing on desktop")
 
 func generateTOC(path string) map[string]string {
 	meta := map[string]string{}
@@ -87,6 +88,7 @@ func main() {
 		handler:  http.FileServer(httpdir),
 		reverse:  *reverseSort,
 		hideIcon: *hideIcon,
+		columns:  *columns,
 		toc:      loadTOC(*tocFile),
 	}
 	if *tocFile != "" {
@@ -117,6 +119,7 @@ type renderer struct {
 	handler  http.Handler
 	reverse  bool
 	hideIcon bool
+	columns  int
 	tocMu    sync.RWMutex
 	toc      map[string]string
 }
@@ -309,7 +312,10 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		return entries[i].Name() < entries[j].Name()
 	})
 
-	rw.Write([]byte("<pre>\n"))
+	if r.columns > 1 {
+		fmt.Fprintf(rw, "<style>@media(min-width:601px){.dir-list{display:grid;grid-template-columns:repeat(%d,1fr);}}</style>\n", r.columns)
+	}
+	rw.Write([]byte("<ul class=\"dir-list\">\n"))
 	for _, entry := range entries {
 		name := entry.Name()
 		if r.hideIcon && isIconFile(name) {
@@ -323,7 +329,7 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		if label, ok := r.getTOC(urlPath); ok {
 			displayName = label
 		}
-		fmt.Fprintf(rw, "<a href=\"%s\">%s</a>\n", urlPath, displayName)
+		fmt.Fprintf(rw, "<li><a href=\"%s\">%s</a></li>\n", urlPath, displayName)
 	}
-	rw.Write([]byte("</pre>\n"))
+	rw.Write([]byte("</ul>\n"))
 }
