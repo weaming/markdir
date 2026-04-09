@@ -28,6 +28,7 @@ var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.p
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
 var columns = flag.Int("columns", 1, "number of columns for directory listing on desktop")
 var exts = flag.String("exts", "", "comma separated extensions to show in listing, e.g. 'json,md,jsonl' (dirs always shown)")
+var llms = flag.Bool("llms", false, "llms.txt style, see https://llmstxt.org")
 
 func generateTOC(path string, extFilter []string) map[string]string {
 	meta := map[string]string{}
@@ -95,6 +96,7 @@ func main() {
 		columns:        *columns,
 		exts:           parseExts(*exts),
 		ignore:         parseIgnore(*ignore),
+		llms:           *llms,
 		toc:            loadTOC(*tocFile, parseExts(*exts)),
 		gitignoreCache: make(map[string][]gitignoreEntry),
 	}
@@ -129,6 +131,7 @@ type renderer struct {
 	columns        int
 	exts           []string
 	ignore         []string
+	llms           bool
 	tocMu          sync.RWMutex
 	toc            map[string]string
 	gitignoreCache map[string][]gitignoreEntry
@@ -390,6 +393,35 @@ func isNoIndex(path string) bool {
 	return false
 }
 
+// dirTitle derives a page title from a URL path segment:
+// replaces '_' and '-' with spaces, then title-cases each word.
+func dirTitle(urlPath string) string {
+	name := strings.TrimSuffix(urlPath, "/")
+	if idx := strings.LastIndex(name, "/"); idx >= 0 {
+		name = name[idx+1:]
+	}
+	if name == "" {
+		wd, _ := os.Getwd()
+		name = filepath.Base(wd)
+	}
+	name = strings.NewReplacer("_", " ", "-", " ").Replace(name)
+	words := strings.Fields(name)
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+func indexHead(urlPath string) string {
+	head := strings.Replace(MDTemplateIndex, "{{TITLE}}", dirTitle(urlPath), 1)
+	if _, err := os.Stat("index.css"); err == nil {
+		head = strings.Replace(head, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
+	}
+	return head
+}
+
 var codeExtensions = []string{
 	".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv",
 	".json", ".jsonl", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp",
@@ -404,7 +436,14 @@ var codeExtensions = []string{
 func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 
-	// 1. Handle /date/ virtual paths
+	// 1. Handle /llms.txt virtual endpoint
+	if r.llms && path == "/llms.txt" {
+		log.Println(path)
+		r.serveLLMSTxt(rw, req)
+		return
+	}
+
+	// 2. Handle /date/ virtual paths
 	if path == "/date" {
 		http.Redirect(rw, req, "/date/", http.StatusMovedPermanently)
 		return
@@ -445,11 +484,7 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 		// Pre-render directory listing parts
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-		outHead := MDTemplateIndex
-		if _, err := os.Stat("index.css"); err == nil {
-			outHead = strings.Replace(outHead, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
-		}
-		rw.Write([]byte(outHead))
+		rw.Write([]byte(indexHead(req.URL.Path)))
 
 		if r.reverse {
 			r.serveDirectoryListing(rw, req, true)
@@ -480,10 +515,34 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	// 3. Handle Markdown files
-	if strings.HasSuffix(path, ".md") || strings.HasSuffix(path, "/Guide") {
+	// 3. llms mode: .md URL → raw plaintext markdown
+	if r.llms && strings.HasSuffix(path, ".md") {
 		log.Println(path)
 		input, err := os.ReadFile("." + path)
+		if err != nil {
+			http.Error(rw, "not found", 404)
+			log.Printf("Couldn't read path %s: %v\n", path, err)
+			return
+		}
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		rw.Write(input)
+		return
+	}
+
+	// 4. Handle Markdown files → render HTML.
+	// In llms mode, listing links have .md stripped, so we resolve path+".md".
+	mdFilePath := "." + path
+	isMdURL := strings.HasSuffix(path, ".md") || strings.HasSuffix(path, "/Guide")
+	if !isMdURL && r.llms && !isDir(req) {
+		candidate := "." + path + ".md"
+		if _, err := os.Stat(candidate); err == nil {
+			mdFilePath = candidate
+			isMdURL = true
+		}
+	}
+	if isMdURL {
+		log.Println(path)
+		input, err := os.ReadFile(mdFilePath)
 		if err != nil {
 			http.Error(rw, "not found", 404)
 			log.Printf("Couldn't read path %s: %v\n", path, err)
@@ -495,21 +554,19 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			log.Printf("Couldn't parse markdown %s: %v\n", path, err)
 			return
 		}
-		output := buf.Bytes()
-
-		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 		hasCustomCSS := false
 		if _, err := os.Stat("index.css"); err == nil {
 			hasCustomCSS = true
 		}
+		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 		outputTemplate.Execute(rw, struct {
 			Path         string
 			Body         template.HTML
 			HasCustomCSS bool
 		}{
 			Path:         path,
-			Body:         template.HTML(string(output)),
+			Body:         template.HTML(buf.String()),
 			HasCustomCSS: hasCustomCSS,
 		})
 		return
@@ -582,6 +639,10 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 			name += "/"
 		}
 		urlPath := req.URL.Path + name
+		if r.llms && strings.HasSuffix(urlPath, ".md") {
+			urlPath = strings.TrimSuffix(urlPath, ".md")
+			displayName = strings.TrimSuffix(displayName, ".md")
+		}
 		if label, ok := r.getTOC(urlPath); ok {
 			displayName = label
 		}
@@ -654,11 +715,7 @@ func (r *renderer) serveDateDirectoryListing(rw http.ResponseWriter, req *http.R
 	}
 
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	outHead := MDTemplateIndex
-	if _, err := os.Stat("index.css"); err == nil {
-		outHead = strings.Replace(outHead, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
-	}
-	rw.Write([]byte(outHead))
+	rw.Write([]byte(indexHead(req.URL.Path)))
 
 	if r.columns > 1 {
 		fmt.Fprintf(rw, "<style>@media(min-width:601px){.dir-list{display:grid;grid-template-columns:repeat(%d,1fr);}}</style>\n", r.columns)
@@ -726,11 +783,7 @@ func (r *renderer) serveDateList(rw http.ResponseWriter, req *http.Request) {
 	sort.Sort(sort.Reverse(sort.StringSlice(dates)))
 
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-	outHead := MDTemplateIndex
-	if _, err := os.Stat("index.css"); err == nil {
-		outHead = strings.Replace(outHead, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
-	}
-	rw.Write([]byte(outHead))
+	rw.Write([]byte(indexHead(req.URL.Path)))
 	if r.columns > 1 {
 		fmt.Fprintf(rw, "<style>@media(min-width:601px){.dir-list{display:grid;grid-template-columns:repeat(%d,1fr);}}</style>\n", r.columns)
 	}
@@ -749,4 +802,79 @@ func isDateString(s string) bool {
 	}
 	_, err := time.Parse("2006-01-02", s)
 	return err == nil
+}
+
+// serveLLMSTxt generates /llms.txt following the llmstxt.org spec:
+// H1 title, then H2 sections per top-level directory, each listing .md files.
+func (r *renderer) serveLLMSTxt(rw http.ResponseWriter, req *http.Request) {
+	// Collect all .md files grouped by top-level directory.
+	// Key "" = root-level .md files.
+	groups := map[string][]string{}
+	var groupOrder []string
+	seen := map[string]bool{}
+
+	filepath.WalkDir(".", func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
+		if len(r.exts) > 0 && !hasSuffix(strings.ToLower(d.Name()), r.exts) {
+			return nil
+		}
+
+		slashPath := filepath.ToSlash(p)
+		parts := strings.SplitN(slashPath, "/", 3)
+
+		var section string
+		if len(parts) >= 2 && parts[0] == "." {
+			if len(parts) == 2 {
+				section = ""
+			} else {
+				section = parts[1]
+			}
+		}
+
+		if !seen[section] {
+			seen[section] = true
+			groupOrder = append(groupOrder, section)
+		}
+		groups[section] = append(groups[section], "/"+strings.TrimPrefix(slashPath, "./"))
+		return nil
+	})
+
+	// Sort files within each group.
+	for _, files := range groups {
+		sort.Strings(files)
+	}
+
+	// Determine title from working directory name.
+	wd, _ := os.Getwd()
+	title := filepath.Base(wd)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "# %s\n", title)
+
+	for _, section := range groupOrder {
+		files := groups[section]
+		if section != "" {
+			fmt.Fprintf(&sb, "\n## %s\n\n", section)
+		} else {
+			sb.WriteString("\n## Docs\n\n")
+		}
+		for _, filePath := range files {
+			name := strings.TrimSuffix(filepath.Base(filePath), ".md")
+			fmt.Fprintf(&sb, "- [%s](%s)\n", name, filePath)
+		}
+	}
+
+	rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	rw.Write([]byte(sb.String()))
 }
