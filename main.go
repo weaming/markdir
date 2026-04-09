@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -99,6 +100,7 @@ func main() {
 		llms:           *llms,
 		toc:            loadTOC(*tocFile, parseExts(*exts)),
 		gitignoreCache: make(map[string][]gitignoreEntry),
+		mdTitleCache:   make(map[string]mdTitleEntry),
 	}
 	if *tocFile != "" {
 		go handler.watchTOC(*tocFile)
@@ -123,6 +125,11 @@ var iconImageExtensions = []string{
 	".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg",
 }
 
+type mdTitleEntry struct {
+	title    string
+	cachedAt time.Time
+}
+
 type renderer struct {
 	dir            http.Dir
 	handler        http.Handler
@@ -136,6 +143,8 @@ type renderer struct {
 	toc            map[string]string
 	gitignoreCache map[string][]gitignoreEntry
 	gitignoreMu    sync.RWMutex
+	mdTitleCache   map[string]mdTitleEntry
+	mdTitleMu      sync.RWMutex
 }
 
 func (r *renderer) getTOC(key string) (string, bool) {
@@ -819,74 +828,115 @@ func isDateString(s string) bool {
 	return err == nil
 }
 
+// readMDTitle scans a markdown file for the first H1 line and returns its text.
+func readMDTitle(filePath string) string {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "# ") {
+			return strings.TrimSpace(line[2:])
+		}
+	}
+	return ""
+}
+
+func (r *renderer) getMDTitle(filePath string) string {
+	r.mdTitleMu.RLock()
+	entry, ok := r.mdTitleCache[filePath]
+	r.mdTitleMu.RUnlock()
+	if ok && time.Since(entry.cachedAt) < time.Minute {
+		return entry.title
+	}
+	title := readMDTitle(filePath)
+	r.mdTitleMu.Lock()
+	r.mdTitleCache[filePath] = mdTitleEntry{title: title, cachedAt: time.Now()}
+	r.mdTitleMu.Unlock()
+	return title
+}
+
 // serveLLMSTxt generates /llms.txt following the llmstxt.org spec:
 // H1 title, then H2 sections per top-level directory, each listing .md files.
 func (r *renderer) serveLLMSTxt(rw http.ResponseWriter, req *http.Request) {
-	// Collect all .md files grouped by top-level directory.
-	// Key "" = root-level .md files.
-	groups := map[string][]string{}
-	var groupOrder []string
-	seen := map[string]bool{}
-
-	filepath.WalkDir(".", func(p string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
-				return filepath.SkipDir
+	// Collect root-level .md files.
+	var rootFiles []string
+	// Enumerate top-level subdirectories in order.
+	topEntries, _ := os.ReadDir(".")
+	var sections []string
+	for _, e := range topEntries {
+		if !e.IsDir() {
+			if strings.HasSuffix(e.Name(), ".md") {
+				if len(r.exts) == 0 || hasSuffix(strings.ToLower(e.Name()), r.exts) {
+					rootFiles = append(rootFiles, "/"+e.Name())
+				}
 			}
-			return nil
+			continue
 		}
-		if !strings.HasSuffix(d.Name(), ".md") {
-			return nil
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
 		}
-		if len(r.exts) > 0 && !hasSuffix(strings.ToLower(d.Name()), r.exts) {
-			return nil
-		}
-
-		slashPath := filepath.ToSlash(p)
-		parts := strings.SplitN(slashPath, "/", 3)
-
-		var section string
-		if len(parts) >= 2 && parts[0] == "." {
-			if len(parts) == 2 {
-				section = ""
-			} else {
-				section = parts[1]
-			}
-		}
-
-		if !seen[section] {
-			seen[section] = true
-			groupOrder = append(groupOrder, section)
-		}
-		groups[section] = append(groups[section], "/"+strings.TrimPrefix(slashPath, "./"))
-		return nil
-	})
-
-	// Sort files within each group.
-	for _, files := range groups {
-		sort.Strings(files)
+		sections = append(sections, e.Name())
 	}
 
-	// Determine title from working directory name.
-	wd, _ := os.Getwd()
-	title := filepath.Base(wd)
-
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "# %s\n", title)
-
-	for _, section := range groupOrder {
-		files := groups[section]
-		if section != "" {
-			fmt.Fprintf(&sb, "\n## %s\n\n", section)
+	// For each section, find all .md files recursively.
+	groups := map[string][]string{}
+	for _, section := range sections {
+		filepath.WalkDir("./"+section, func(p string, d os.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				if d.Name() != section && strings.HasPrefix(d.Name(), ".") {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".md") {
+				return nil
+			}
+			if len(r.exts) > 0 && !hasSuffix(strings.ToLower(d.Name()), r.exts) {
+				return nil
+			}
+			groups[section] = append(groups[section], "/"+strings.TrimPrefix(filepath.ToSlash(p), "./"))
+			return nil
+		})
+		if r.reverse {
+			sort.Sort(sort.Reverse(sort.StringSlice(groups[section])))
 		} else {
-			sb.WriteString("\n## Docs\n\n")
+			sort.Strings(groups[section])
 		}
-		for _, filePath := range files {
-			name := strings.TrimSuffix(filepath.Base(filePath), ".md")
-			fmt.Fprintf(&sb, "- [%s](%s)\n", name, filePath)
+	}
+
+	wd, _ := os.Getwd()
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "# %s\n", dirTitle("/"+filepath.Base(wd)+"/"))
+
+	if len(rootFiles) > 0 {
+		sb.WriteString("\n")
+		for _, filePath := range rootFiles {
+			title := r.getMDTitle("." + filePath)
+			if title == "" {
+				title = strings.TrimSuffix(filepath.Base(filePath), ".md")
+			}
+			fmt.Fprintf(&sb, "- [%s](%s)\n", title, filePath)
+		}
+	}
+
+	for _, section := range sections {
+		if len(groups[section]) == 0 {
+			continue
+		}
+		fmt.Fprintf(&sb, "\n## %s\n\n", dirTitle("/"+section+"/"))
+		for _, filePath := range groups[section] {
+			title := r.getMDTitle("." + filePath)
+			if title == "" {
+				title = strings.TrimSuffix(filepath.Base(filePath), ".md")
+			}
+			fmt.Fprintf(&sb, "- [%s](%s)\n", title, filePath)
 		}
 	}
 
