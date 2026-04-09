@@ -619,7 +619,11 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	sort.Slice(entries, func(i, j int) bool {
+	sort.SliceStable(entries, func(i, j int) bool {
+		di, dj := entries[i].IsDir(), entries[j].IsDir()
+		if di != dj {
+			return di // dirs always first
+		}
 		if reverse {
 			return entries[i].Name() > entries[j].Name()
 		}
