@@ -22,6 +22,7 @@ import (
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
 var showHidden = flag.Bool("all", false, "show hide directories")
 var noIndex = flag.String("no-index", "", "comma separated list of directories to disable listing")
+var ignore = flag.String("ignore", "", "comma separated list of directories to hide from listing (default: .git/)")
 var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
@@ -87,13 +88,15 @@ func main() {
 
 	httpdir := http.Dir(".")
 	handler := &renderer{
-		dir:      httpdir,
-		handler:  http.FileServer(httpdir),
-		reverse:  *reverseSort,
-		hideIcon: *hideIcon,
-		columns:  *columns,
-		exts:     parseExts(*exts),
-		toc:      loadTOC(*tocFile, parseExts(*exts)),
+		dir:            httpdir,
+		handler:        http.FileServer(httpdir),
+		reverse:        *reverseSort,
+		hideIcon:       *hideIcon,
+		columns:        *columns,
+		exts:           parseExts(*exts),
+		ignore:         parseIgnore(*ignore),
+		toc:            loadTOC(*tocFile, parseExts(*exts)),
+		gitignoreCache: make(map[string][]gitignoreEntry),
 	}
 	if *tocFile != "" {
 		go handler.watchTOC(*tocFile)
@@ -119,14 +122,17 @@ var iconImageExtensions = []string{
 }
 
 type renderer struct {
-	dir      http.Dir
-	handler  http.Handler
-	reverse  bool
-	hideIcon bool
-	columns  int
-	exts     []string
-	tocMu    sync.RWMutex
-	toc      map[string]string
+	dir            http.Dir
+	handler        http.Handler
+	reverse        bool
+	hideIcon       bool
+	columns        int
+	exts           []string
+	ignore         []string
+	tocMu          sync.RWMutex
+	toc            map[string]string
+	gitignoreCache map[string][]gitignoreEntry
+	gitignoreMu    sync.RWMutex
 }
 
 func (r *renderer) getTOC(key string) (string, bool) {
@@ -134,6 +140,41 @@ func (r *renderer) getTOC(key string) (string, bool) {
 	defer r.tocMu.RUnlock()
 	v, ok := r.toc[key]
 	return v, ok
+}
+
+func (r *renderer) getGitignore(dirPath string) []gitignoreEntry {
+	r.gitignoreMu.RLock()
+	entries, ok := r.gitignoreCache[dirPath]
+	r.gitignoreMu.RUnlock()
+	if ok {
+		return entries
+	}
+
+	var allEntries []gitignoreEntry
+	for p := dirPath; ; {
+		gitignorePath := filepath.Join(p, ".gitignore")
+		if parsed, err := parseGitignore(gitignorePath); err == nil {
+			allEntries = append(allEntries, parsed...)
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			break
+		}
+		p = parent
+	}
+
+	r.gitignoreMu.Lock()
+	r.gitignoreCache[dirPath] = allEntries
+	r.gitignoreMu.Unlock()
+	return allEntries
+}
+
+func (r *renderer) isGitignored(name string, isDir bool, dirPath string) bool {
+	entries := r.getGitignore(dirPath)
+	if len(entries) == 0 {
+		return false
+	}
+	return matchGitignore(name, isDir, entries)
 }
 
 func (r *renderer) watchTOC(path string) {
@@ -166,7 +207,6 @@ func (r *renderer) watchTOC(path string) {
 	}
 }
 
-
 func dirContainsExts(urlPath string, exts []string) bool {
 	fsPath := "." + urlPath
 	found := false
@@ -181,6 +221,118 @@ func dirContainsExts(urlPath string, exts []string) bool {
 		return nil
 	})
 	return found
+}
+
+func parseIgnore(raw string) []string {
+	defaultIgnore := []string{".git/"}
+	if raw == "" {
+		return defaultIgnore
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts)+len(defaultIgnore))
+	result = append(result, defaultIgnore...)
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if !strings.HasSuffix(p, "/") {
+			p += "/"
+		}
+		result = append(result, p)
+	}
+	return result
+}
+
+func isIgnored(name string, ignoreList []string) bool {
+	for _, ign := range ignoreList {
+		if name == ign || strings.HasPrefix(name, ign) || strings.HasPrefix(ign, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// gitignoreEntry represents a parsed gitignore pattern.
+type gitignoreEntry struct {
+	pattern string
+	negate  bool
+	dirOnly bool
+}
+
+// parseGitignore reads a .gitignore file and returns patterns.
+func parseGitignore(path string) ([]gitignoreEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var entries []gitignoreEntry
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimRight(line, " \t\r")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		negate := false
+		if strings.HasPrefix(line, "!") {
+			negate = true
+			line = line[1:]
+		}
+		dirOnly := strings.HasSuffix(line, "/")
+		if dirOnly {
+			line = line[:len(line)-1]
+		}
+		if line != "" {
+			entries = append(entries, gitignoreEntry{
+				pattern: line,
+				negate:  negate,
+				dirOnly: dirOnly,
+			})
+		}
+	}
+	return entries, nil
+}
+
+// matchGitignore checks if name matches any gitignore entry.
+func matchGitignore(name string, isDir bool, entries []gitignoreEntry) bool {
+	matched := false
+	nameWithSlash := name + "/"
+	for _, e := range entries {
+		if e.dirOnly && !isDir {
+			continue
+		}
+		hit := matchGitignorePattern(name, e.pattern)
+		if !hit && isDir {
+			hit = matchGitignorePattern(nameWithSlash, e.pattern)
+		}
+		if hit {
+			matched = !e.negate
+		}
+	}
+	return matched
+}
+
+func matchGitignorePattern(name, pattern string) bool {
+	if pattern == "" {
+		return false
+	}
+	if suffix, ok := strings.CutPrefix(pattern, "**/"); ok {
+		// **/foo matches foo anywhere in the path
+		return name == suffix || strings.HasSuffix(name, "/"+suffix)
+	}
+	if prefix, ok := strings.CutSuffix(pattern, "/**"); ok {
+		return name == prefix || strings.HasPrefix(name, prefix+"/")
+	}
+	if strings.Contains(pattern, "/") {
+		matched, _ := filepath.Match(pattern, name)
+		return matched
+	}
+	// No slash: match against each path component
+	for _, part := range strings.Split(name, "/") {
+		if matched, _ := filepath.Match(pattern, part); matched {
+			return true
+		}
+	}
+	return false
 }
 
 func parseExts(raw string) []string {
@@ -264,10 +416,8 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	if strings.HasPrefix(path, "/date/") && isDir(req) {
 		rest := strings.TrimPrefix(path, "/date/")
-		slashIdx := strings.Index(rest, "/")
-		if slashIdx >= 0 {
-			date := rest[:slashIdx]
-			subpath := strings.TrimSuffix(rest[slashIdx+1:], "/")
+		if date, remainder, ok := strings.Cut(rest, "/"); ok {
+			subpath := strings.TrimSuffix(remainder, "/")
 			if isDateString(date) {
 				log.Println(path)
 				r.serveDateDirectoryListing(rw, req, date, subpath)
@@ -314,10 +464,7 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// 2. Handle /date/{date}/{source path} → /{source path stem}/{date}{ext}
 	if strings.HasPrefix(path, "/date/") && !isDir(req) {
 		rest := strings.TrimPrefix(path, "/date/")
-		slashIdx := strings.Index(rest, "/")
-		if slashIdx >= 0 {
-			date := rest[:slashIdx]
-			sourcePath := rest[slashIdx+1:]
+		if date, sourcePath, ok := strings.Cut(rest, "/"); ok {
 			ext := filepath.Ext(sourcePath)
 			if isDateString(date) && ext != "" {
 				sourceWithoutExt := strings.TrimSuffix(sourcePath, ext)
@@ -408,11 +555,22 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 	rw.Write([]byte("<ul class=\"dir-list\">\n"))
 	for _, entry := range entries {
 		name := entry.Name()
+		displayName := name
+		isDir := entry.IsDir()
+		if isDir {
+			displayName += "/"
+		}
+		if isIgnored(displayName, r.ignore) {
+			continue
+		}
+		if r.isGitignored(name, isDir, fullPath) {
+			continue
+		}
 		if r.hideIcon && isIconFile(name) {
 			continue
 		}
 		if len(r.exts) > 0 {
-			if entry.IsDir() {
+			if isDir {
 				if !dirContainsExts(req.URL.Path+name+"/", r.exts) {
 					continue
 				}
@@ -420,11 +578,10 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 				continue
 			}
 		}
-		if entry.IsDir() {
+		if isDir {
 			name += "/"
 		}
 		urlPath := req.URL.Path + name
-		displayName := name
 		if label, ok := r.getTOC(urlPath); ok {
 			displayName = label
 		}
