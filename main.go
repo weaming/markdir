@@ -512,6 +512,17 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				r.ServeHTTP(rw, &newReq)
 				return
 			}
+			// llms: extensionless date path → remap without .md so stripped-URL handler renders HTML
+			if r.llms && isDateString(date) && ext == "" {
+				remappedPath := "/" + sourcePath + "/" + date
+				log.Printf("%s -> .%s (llms)", path, remappedPath)
+				newReq := *req
+				newURL := *req.URL
+				newURL.Path = remappedPath
+				newReq.URL = &newURL
+				r.ServeHTTP(rw, &newReq)
+				return
+			}
 		}
 	}
 
@@ -734,7 +745,11 @@ func (r *renderer) serveDateDirectoryListing(rw http.ResponseWriter, req *http.R
 
 		if files, ok := directMap[name]; ok {
 			for _, filename := range files {
-				urlPath := req.URL.Path + name + filepath.Ext(filename)
+				ext := filepath.Ext(filename)
+				urlPath := req.URL.Path + name + ext
+				if r.llms && ext == ".md" {
+					urlPath = strings.TrimSuffix(urlPath, ".md")
+				}
 				fmt.Fprintf(rw, "<li><a href=\"%s\">%s</a></li>\n", urlPath, displayName)
 			}
 		} else {
