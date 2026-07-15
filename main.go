@@ -462,6 +462,34 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		r.serveDateList(rw, req)
 		return
 	}
+
+	// Resolve /date/today → serve as /date/{Beijing today}
+	if strings.HasPrefix(path, "/date/today") {
+		today := beijingToday()
+		resolvedPath := strings.Replace(path, "/date/today", "/date/"+today, 1)
+		// 确保裸日期带上尾随斜杠，避免回落到文件服务
+		if resolvedPath == "/date/"+today {
+			resolvedPath += "/"
+		}
+		log.Printf("%s -> %s", path, resolvedPath)
+		newReq := *req
+		newURL := *req.URL
+		newURL.Path = resolvedPath
+		newReq.URL = &newURL
+		r.ServeHTTP(rw, &newReq)
+		return
+	}
+
+	// Serve /date/{date} 不带尾随斜杠时直接渲染目录页
+	if strings.HasPrefix(path, "/date/") && !isDir(req) {
+		date := strings.TrimPrefix(path, "/date/")
+		if isDateString(date) {
+			log.Println(path)
+			r.serveDateDirectoryListing(rw, req, date, "")
+			return
+		}
+	}
+
 	if strings.HasPrefix(path, "/date/") && isDir(req) {
 		rest := strings.TrimPrefix(path, "/date/")
 		if date, remainder, ok := strings.Cut(rest, "/"); ok {
@@ -821,6 +849,15 @@ func (r *renderer) serveDateList(rw http.ResponseWriter, req *http.Request) {
 	}
 	rw.Write([]byte("</ul>\n"))
 	rw.Write([]byte(MDTemplateIndexTail))
+}
+
+// beijingToday 返回北京时区（UTC+8）当天日期字符串 YYYY-MM-DD。
+func beijingToday() string {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600)
+	}
+	return time.Now().In(loc).Format("2006-01-02")
 }
 
 // isDateString 检查字符串是否为 YYYY-MM-DD 格式。
