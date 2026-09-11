@@ -6,10 +6,19 @@ const MDTemplateIndex = `
 	<meta http-equiv="content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{TITLE}}</title>
+    ` + themeHeadScript + `
     <style>
       * {
         -webkit-box-sizing: border-box;
         box-sizing: border-box;
+      }
+
+      :root {` + themeLightVars + `}
+
+      :root[data-theme="dark"] {` + themeDarkVars + `}
+
+      @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {` + themeDarkVars + `}
       }
 
       body {
@@ -18,17 +27,17 @@ const MDTemplateIndex = `
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
         font-size: 16px;
         line-height: 1.5;
-        color: #24292e;
-        background: #fafbfc;
+        color: var(--fg);
+        background: var(--bg);
       }
 
       .markdown-body {
         max-width: 1000px;
         margin: 0 auto;
         padding: 24px 32px;
-        background: #fff;
+        background: var(--card-bg);
         border-radius: 6px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        box-shadow: var(--card-shadow);
       }
 
       .dir-list {
@@ -43,25 +52,27 @@ const MDTemplateIndex = `
 
       .dir-list a {
         font-size: 20px;
-        color: #0366d6;
+        color: var(--link);
         text-decoration: none;
         border-bottom: 1px solid transparent;
         transition: color 0.2s ease, border-color 0.2s ease;
       }
 
       .dir-list a:hover {
-        color: #0256b9;
-        border-bottom-color: #0256b9;
+        color: var(--link-hover);
+        border-bottom-color: var(--link-hover);
       }
 
       .dir-list a:visited {
-        color: #8b5cf6;
+        color: var(--link-visited);
       }
 
       .dir-list a:visited:hover {
-        color: #6d42e6;
-        border-bottom-color: #6d42e6;
+        color: var(--link-visited-hover);
+        border-bottom-color: var(--link-visited-hover);
       }
+
+      ` + themeToggleCSS + `
 
       @media (max-width: 600px) {
         body {
@@ -76,7 +87,7 @@ const MDTemplateIndex = `
         }
 
         .dir-list li {
-          border-bottom: 1px solid #f0f0f0;
+          border-bottom: 1px solid var(--divider);
         }
 
         .dir-list li:last-child {
@@ -96,14 +107,14 @@ const MDTemplateIndex = `
         }
 
         .dir-list a:hover {
-          background: #f0f6ff;
-          color: #0256b9;
+          background: var(--hover-light-bg);
+          color: var(--link-hover);
           border-bottom: none;
         }
 
         .dir-list a:visited:hover {
-          background: #f5f0ff;
-          color: #6d42e6;
+          background: var(--hover-purple-bg);
+          color: var(--link-visited-hover);
           border-bottom: none;
         }
       }
@@ -112,6 +123,10 @@ const MDTemplateIndex = `
         body {
           background: #fff;
           padding: 0;
+        }
+
+        .theme-toggle {
+          display: none;
         }
 
         .markdown-body {
@@ -124,10 +139,12 @@ const MDTemplateIndex = `
     </style>
   </head>
   <body>
+    ` + themeButton + `
     <div class="markdown-body">
 	`
 
 const MDTemplateIndexTail = `
 	</div>
+  ` + themeToggleScript + `
   </body>
 </html>`

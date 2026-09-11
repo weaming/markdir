@@ -6,11 +6,20 @@ const MDTemplate = `
 	<meta http-equiv="content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ .Path }}</title>
+    ` + themeHeadScript + `
     {{ if .HasCustomCSS }}<link rel="stylesheet" href="/index.css">{{ end }}
     <style>
       * {
         -webkit-box-sizing: border-box;
         box-sizing: border-box;
+      }
+
+      :root {` + themeLightVars + `}
+
+      :root[data-theme="dark"] {` + themeDarkVars + `}
+
+      @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {` + themeDarkVars + `}
       }
 
       body {
@@ -19,17 +28,17 @@ const MDTemplate = `
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
         font-size: 16px;
         line-height: 1.5;
-        color: #24292e;
-        background: #fafbfc;
+        color: var(--fg);
+        background: var(--bg);
       }
 
       .markdown-body {
         max-width: 1000px;
         margin: 0 auto;
         padding: 24px 32px;
-        background: #fff;
+        background: var(--card-bg);
         border-radius: 6px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        box-shadow: var(--card-shadow);
       }
 
       .markdown-body > *:first-child {
@@ -41,25 +50,25 @@ const MDTemplate = `
       }
 
       .markdown-body a {
-        color: #0366d6;
+        color: var(--link);
         text-decoration: none;
         border-bottom: 1px solid transparent;
         transition: color 0.2s ease, border-color 0.2s ease;
       }
 
       .markdown-body a:hover {
-        color: #0256b9;
-        border-bottom-color: #0256b9;
+        color: var(--link-hover);
+        border-bottom-color: var(--link-hover);
         text-decoration: none;
       }
 
       .markdown-body a:visited {
-        color: #8b5cf6;
+        color: var(--link-visited);
       }
 
       .markdown-body a:visited:hover {
-        color: #6d42e6;
-        border-bottom-color: #6d42e6;
+        color: var(--link-visited-hover);
+        border-bottom-color: var(--link-visited-hover);
       }
 
       .markdown-body h1,
@@ -77,13 +86,13 @@ const MDTemplate = `
       .markdown-body h1 {
         padding-bottom: 0.25em;
         font-size: 1.75em;
-        border-bottom: 1px solid #eaecef;
+        border-bottom: 1px solid var(--heading-border);
       }
 
       .markdown-body h2 {
         padding-bottom: 0.25em;
         font-size: 1.45em;
-        border-bottom: 1px solid #eaecef;
+        border-bottom: 1px solid var(--heading-border);
       }
 
       .markdown-body h3 {
@@ -100,7 +109,7 @@ const MDTemplate = `
 
       .markdown-body h6 {
         font-size: 0.9em;
-        color: #6a737d;
+        color: var(--muted);
       }
 
       .markdown-body p {
@@ -134,8 +143,8 @@ const MDTemplate = `
       .markdown-body blockquote {
         padding: 0 12px;
         margin: 0 0 8px;
-        color: #6a737d;
-        border-left: 4px solid #dfe2e5;
+        color: var(--muted);
+        border-left: 4px solid var(--quote-border);
       }
 
       .markdown-body blockquote > :first-child {
@@ -150,7 +159,7 @@ const MDTemplate = `
         padding: 0.2em 0.4em;
         margin: 0;
         font-size: 85%;
-        background-color: rgba(27,31,35,0.05);
+        background-color: var(--code-bg);
         border-radius: 3px;
         font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
       }
@@ -161,7 +170,7 @@ const MDTemplate = `
         overflow: auto;
         font-size: 85%;
         line-height: 1.4;
-        background-color: #f6f8fa;
+        background-color: var(--pre-bg);
         border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
       }
@@ -185,21 +194,21 @@ const MDTemplate = `
       .markdown-body table th,
       .markdown-body table td {
         padding: 5px 10px;
-        border: 1px solid #dfe2e5;
+        border: 1px solid var(--table-border);
       }
 
       .markdown-body table th {
         font-weight: 600;
-        background-color: #f6f8fa;
+        background-color: var(--table-alt-bg);
       }
 
       .markdown-body table tr {
-        background-color: #fff;
-        border-top: 1px solid #c6cbd1;
+        background-color: var(--card-bg);
+        border-top: 1px solid var(--table-row-border);
       }
 
       .markdown-body table tr:nth-child(2n) {
-        background-color: #f6f8fa;
+        background-color: var(--table-alt-bg);
       }
 
       .markdown-body img {
@@ -211,7 +220,7 @@ const MDTemplate = `
         height: 0.25em;
         padding: 0;
         margin: 16px 0;
-        background-color: #e1e4e8;
+        background-color: var(--hr-bg);
         border: 0;
       }
 
@@ -220,17 +229,17 @@ const MDTemplate = `
         padding: 3px 5px;
         font-size: 11px;
         line-height: 10px;
-        color: #444d56;
+        color: var(--kbd-fg);
         vertical-align: middle;
-        background-color: #fafbfc;
-        border: 1px solid #d1d5da;
+        background-color: var(--bg);
+        border: 1px solid var(--kbd-border);
         border-radius: 3px;
-        box-shadow: inset 0 -1px 0 #d1d5da;
+        box-shadow: inset 0 -1px 0 var(--kbd-border);
         font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
       }
 
       .markdown-body mark {
-        background: #fff3c4;
+        background: var(--mark-bg);
         color: inherit;
         padding: 0.2em 0.4em;
         border-radius: 3px;
@@ -243,6 +252,8 @@ const MDTemplate = `
       .markdown-body del {
         text-decoration: line-through;
       }
+
+      ` + themeToggleCSS + `
 
       @media (max-width: 600px) {
         body {
@@ -340,6 +351,10 @@ const MDTemplate = `
           color: #000;
         }
 
+        .theme-toggle {
+          display: none;
+        }
+
         .markdown-body {
           box-shadow: none;
           max-width: 100%;
@@ -418,8 +433,10 @@ const MDTemplate = `
     </style>
   </head>
   <body>
+    ` + themeButton + `
     <div class="markdown-body">
       {{.Body}}
     </div>
+  ` + themeToggleScript + `
   </body>
 </html>`
