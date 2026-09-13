@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -594,8 +593,12 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			log.Printf("Couldn't read path %s: %v\n", path, err)
 			return
 		}
+		yaml, body := splitFrontMatter(input)
 		var buf bytes.Buffer
-		if err := md.Convert(input, &buf); err != nil {
+		if table := frontMatterTable(yaml); table != "" {
+			buf.WriteString(table)
+		}
+		if err := md.Convert(body, &buf); err != nil {
 			http.Error(rw, "markdown parsing failed", 500)
 			log.Printf("Couldn't parse markdown %s: %v\n", path, err)
 			return
@@ -873,16 +876,19 @@ func isDateString(s string) bool {
 	return err == nil
 }
 
-// readMDTitle scans a markdown file for the first H1 line and returns its text.
+// readMDTitle returns a markdown file's display title: the front matter "title"
+// field when present, otherwise the first H1 line.
 func readMDTitle(filePath string) string {
-	f, err := os.Open(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+	yaml, body := splitFrontMatter(data)
+	if title := frontMatterValue(yaml, "title"); title != "" {
+		return title
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "# ") {
 			return strings.TrimSpace(line[2:])
 		}
