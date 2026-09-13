@@ -22,7 +22,7 @@ import (
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
 var showHidden = flag.Bool("all", false, "show hide directories")
 var noIndex = flag.String("no-index", "", "comma separated list of directories to disable listing")
-var ignore = flag.String("ignore", "", "comma separated list of directories to hide from listing (default: .git/)")
+var ignore = flag.String("ignore", "", "comma separated list of names to hide from listing, e.g. '.git/,node_modules' (default: .git/, .DS_Store)")
 var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
@@ -238,32 +238,32 @@ func dirContainsExts(urlPath string, exts []string) bool {
 	return found
 }
 
+// defaultIgnore 是始终隐藏的条目：目录以 / 结尾，文件不带 /。
+var defaultIgnore = []string{".git/", ".DS_Store"}
+
 func parseIgnore(raw string) []string {
-	defaultIgnore := []string{".git/"}
-	if raw == "" {
-		return defaultIgnore
-	}
-	parts := strings.Split(raw, ",")
-	result := make([]string, 0, len(parts)+len(defaultIgnore))
-	result = append(result, defaultIgnore...)
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
+	result := append([]string(nil), defaultIgnore...)
+	for _, p := range strings.Split(raw, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			result = append(result, p)
 		}
-		if !strings.HasSuffix(p, "/") {
-			p += "/"
-		}
-		result = append(result, p)
 	}
 	return result
 }
 
+// isIgnored 判断条目名（目录带 / 后缀）是否命中忽略列表。
+// 以 / 结尾的条目只匹配目录，其余条目匹配同名文件或目录。
 func isIgnored(name string, ignoreList []string) bool {
+	isDir := strings.HasSuffix(name, "/")
+	base := strings.TrimSuffix(name, "/")
 	for _, ign := range ignoreList {
-		if name == ign || strings.HasPrefix(name, ign) || strings.HasPrefix(ign, name) {
-			return true
+		if base != strings.TrimSuffix(ign, "/") {
+			continue
 		}
+		if strings.HasSuffix(ign, "/") && !isDir {
+			continue
+		}
+		return true
 	}
 	return false
 }
