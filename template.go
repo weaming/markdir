@@ -22,23 +22,28 @@ const MDTemplate = `
       :root:not([data-theme="light"]) {` + themeDarkVars + `}
       }
 
+      ` + themeDarkTypography + `
+      ` + themeSelection + `
+
       body {
         margin: 0;
         padding: 20px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-        font-size: 16px;
-        line-height: 1.5;
+        font-size: 17px;
+        line-height: 1.7;
+        text-autospace: normal;
         color: var(--fg);
         background: var(--bg);
       }
 
       .markdown-body {
-        max-width: 1000px;
+        max-width: 900px;
         margin: 0 auto;
         padding: 24px 32px;
         background: var(--card-bg);
         border-radius: 6px;
         box-shadow: var(--card-shadow);
+        overflow-wrap: break-word;
       }
 
       .markdown-body > *:first-child {
@@ -51,15 +56,16 @@ const MDTemplate = `
 
       .markdown-body a {
         color: var(--link);
-        text-decoration: none;
-        border-bottom: 1px solid transparent;
-        transition: color 0.2s ease, border-color 0.2s ease;
+        text-decoration: underline;
+        text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 0.18em;
+        transition: color 0.2s ease, text-decoration-color 0.2s ease;
       }
 
       .markdown-body a:hover {
         color: var(--link-hover);
-        border-bottom-color: var(--link-hover);
-        text-decoration: none;
+        text-decoration-color: currentColor;
       }
 
       .markdown-body a:visited {
@@ -68,7 +74,7 @@ const MDTemplate = `
 
       .markdown-body a:visited:hover {
         color: var(--link-visited-hover);
-        border-bottom-color: var(--link-visited-hover);
+        text-decoration-color: currentColor;
       }
 
       .markdown-body h1,
@@ -96,31 +102,34 @@ const MDTemplate = `
       }
 
       .markdown-body h3 {
+        margin-top: 28px;
         font-size: 1.2em;
       }
 
       .markdown-body h4 {
+        margin-top: 24px;
         font-size: 1.05em;
       }
 
       .markdown-body h5 {
+        margin-top: 22px;
         font-size: 1em;
       }
 
       .markdown-body h6 {
+        margin-top: 20px;
         font-size: 0.9em;
         color: var(--muted);
       }
 
       .markdown-body p {
-        margin-bottom: 8px;
+        margin: 0 0 16px;
       }
 
       .markdown-body ul,
       .markdown-body ol {
         padding-left: 1.5em;
-        margin-top: 0;
-        margin-bottom: 4px;
+        margin: 0 0 16px;
       }
 
       .markdown-body li {
@@ -133,16 +142,18 @@ const MDTemplate = `
         margin-bottom: 4px;
       }
 
-      .markdown-body ol + ul,
-      .markdown-body ul + ol,
-      .markdown-body ol + ol,
-      .markdown-body ul + ul {
-        margin-top: -4px;
+      .markdown-body li:has(> input[type="checkbox"]) {
+        list-style: none;
+      }
+
+      .markdown-body li > input[type="checkbox"] {
+        margin: 0 0.4em 0 0;
+        vertical-align: middle;
       }
 
       .markdown-body blockquote {
         padding: 0 12px;
-        margin: 0 0 8px;
+        margin: 0 0 16px;
         color: var(--muted);
         border-left: 4px solid var(--quote-border);
       }
@@ -166,10 +177,10 @@ const MDTemplate = `
 
       .markdown-body pre {
         padding: 12px;
-        margin-bottom: 8px;
+        margin: 0 0 16px;
         overflow: auto;
         font-size: 85%;
-        line-height: 1.4;
+        line-height: 1.5;
         background-color: var(--pre-bg);
         border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
@@ -187,8 +198,9 @@ const MDTemplate = `
         display: block;
         width: 100%;
         overflow: auto;
-        margin-bottom: 8px;
+        margin: 0 0 16px;
         border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
       }
 
       .markdown-body table th,
@@ -258,8 +270,8 @@ const MDTemplate = `
       @media (max-width: 600px) {
         body {
           padding: 0;
-          font-size: 15px;
-          line-height: 1.55;
+          font-size: 16px;
+          line-height: 1.65;
         }
 
         .markdown-body {
@@ -282,7 +294,7 @@ const MDTemplate = `
 
         .markdown-body h3 {
           font-size: 1.15em;
-          margin-top: 10px;
+          margin-top: 18px;
           margin-bottom: 5px;
         }
 
@@ -290,18 +302,18 @@ const MDTemplate = `
         .markdown-body h5,
         .markdown-body h6 {
           font-size: 1em;
-          margin-top: 8px;
+          margin-top: 16px;
           margin-bottom: 4px;
         }
 
         .markdown-body p {
-          margin-bottom: 10px;
+          margin: 0 0 14px;
         }
 
         .markdown-body ul,
         .markdown-body ol {
           padding-left: 1.6em;
-          margin-bottom: 8px;
+          margin: 0 0 14px;
         }
 
         .markdown-body li {
@@ -310,10 +322,10 @@ const MDTemplate = `
 
         .markdown-body pre {
           padding: 12px;
-          margin: 0 -16px 12px;
+          margin: 0 -16px 14px;
           border-radius: 0;
           font-size: 13px;
-          line-height: 1.45;
+          line-height: 1.5;
         }
 
         .markdown-body code {
@@ -321,14 +333,14 @@ const MDTemplate = `
         }
 
         .markdown-body blockquote {
-          margin: 0 0 10px;
+          margin: 0 0 14px;
           padding: 0 12px;
         }
 
         .markdown-body table {
           display: block;
           overflow-x: auto;
-          margin-bottom: 10px;
+          margin: 0 0 14px;
           font-size: 14px;
         }
 

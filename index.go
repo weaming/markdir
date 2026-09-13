@@ -21,23 +21,28 @@ const MDTemplateIndex = `
       :root:not([data-theme="light"]) {` + themeDarkVars + `}
       }
 
+      ` + themeDarkTypography + `
+      ` + themeSelection + `
+
       body {
         margin: 0;
         padding: 20px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-        font-size: 16px;
-        line-height: 1.5;
+        font-size: 17px;
+        line-height: 1.7;
+        text-autospace: normal;
         color: var(--fg);
         background: var(--bg);
       }
 
       .markdown-body {
-        max-width: 1000px;
+        max-width: 900px;
         margin: 0 auto;
         padding: 24px 32px;
         background: var(--card-bg);
         border-radius: 6px;
         box-shadow: var(--card-shadow);
+        overflow-wrap: break-word;
       }
 
       .dir-list {
@@ -77,7 +82,8 @@ const MDTemplateIndex = `
       @media (max-width: 600px) {
         body {
           padding: 0;
-          font-size: 15px;
+          font-size: 16px;
+          line-height: 1.65;
         }
 
         .markdown-body {

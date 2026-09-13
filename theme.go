@@ -13,10 +13,10 @@ const themeLightVars = `
         --card-shadow: 0 1px 3px rgba(0,0,0,0.08);
         --link: #0366d6;
         --link-hover: #0256b9;
-        --link-visited: #8b5cf6;
+        --link-visited: #8250df;
         --link-visited-hover: #6d42e6;
         --heading-border: #eaecef;
-        --muted: #6a737d;
+        --muted: #57606a;
         --quote-border: #dfe2e5;
         --code-bg: rgba(27,31,35,0.05);
         --pre-bg: #f6f8fa;
@@ -31,12 +31,13 @@ const themeLightVars = `
         --hover-light-bg: #f0f6ff;
         --hover-purple-bg: #f5f0ff;
         --divider: #f0f0f0;
+        --selection-bg: rgba(3,102,214,0.18);
       `
 
 const themeDarkVars = `
         color-scheme: dark;
         --bg: #0d1117;
-        --fg: #e6edf3;
+        --fg: #d8dee4;
         --card-bg: #161b22;
         --card-shadow: 0 1px 3px rgba(0,0,0,0.45);
         --link: #58a6ff;
@@ -59,6 +60,35 @@ const themeDarkVars = `
         --hover-light-bg: rgba(56,139,253,0.15);
         --hover-purple-bg: rgba(188,140,255,0.15);
         --divider: #21262d;
+        --selection-bg: rgba(88,166,255,0.28);
+      `
+
+// themeDarkTypography tunes glyph rendering for light-on-dark reading. Bright
+// thin strokes bloom against a dark background (halation) and look heavier than
+// they are, so we switch to grayscale antialiasing and open the tracking a
+// hair. Applied for the explicit dark theme and, unless the reader forced
+// light mode, for the system preference as well.
+const themeDarkTypography = `
+      :root[data-theme="dark"] body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        letter-spacing: 0.01em;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) body {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          letter-spacing: 0.01em;
+        }
+      }
+      `
+
+// themeSelection keeps text selection legible in both palettes.
+const themeSelection = `
+      ::selection {
+        background: var(--selection-bg);
+      }
       `
 
 const themeToggleCSS = `

@@ -110,7 +110,11 @@ func main() {
 	log.Fatal(http.ListenAndServe(*listen, handler))
 }
 
-var outputTemplate = template.Must(template.New("base").Parse(MDTemplate))
+var (
+	outputTemplate = template.Must(template.New("base").Parse(minifyStyle(MDTemplate)))
+	indexHeadHTML  = minifyStyle(MDTemplateIndex)
+	indexTailHTML  = minifyStyle(MDTemplateIndexTail)
+)
 
 var md = goldmark.New(
 	goldmark.WithExtensions(
@@ -424,7 +428,7 @@ func dirTitle(urlPath string) string {
 }
 
 func indexHead(urlPath string) string {
-	head := strings.Replace(MDTemplateIndex, "{{TITLE}}", dirTitle(urlPath), 1)
+	head := strings.Replace(indexHeadHTML, "{{TITLE}}", dirTitle(urlPath), 1)
 	if _, err := os.Stat("index.css"); err == nil {
 		head = strings.Replace(head, "</head>", "<link rel=\"stylesheet\" href=\"/index.css\">\n</head>", 1)
 	}
@@ -519,17 +523,11 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			}
 		}
 
-		// Pre-render directory listing parts
-		rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-		rw.Write([]byte(indexHead(req.URL.Path)))
-
 		if r.reverse {
 			r.serveDirectoryListing(rw, req, true)
 		} else {
 			r.serveDirectoryListing(rw, req, false)
 		}
-
-		rw.Write([]byte(MDTemplateIndexTail))
 		return
 	}
 
@@ -639,6 +637,8 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	r.handler.ServeHTTP(rw, req)
 }
 
+// serveDirectoryListing 渲染目录索引页。目录读取失败时在写入任何响应体之前
+// 返回错误，避免在已输出的页面上二次写 header。
 func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Request, reverse bool) {
 	fullPath := "." + req.URL.Path
 	entries, err := os.ReadDir(fullPath)
@@ -657,6 +657,9 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		}
 		return entries[i].Name() < entries[j].Name()
 	})
+
+	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rw.Write([]byte(indexHead(req.URL.Path)))
 
 	if r.columns > 1 {
 		fmt.Fprintf(rw, "<style>@media(min-width:601px){.dir-list{display:grid;grid-template-columns:repeat(%d,1fr);}}</style>\n", r.columns)
@@ -701,6 +704,7 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		fmt.Fprintf(rw, "<li><a href=\"%s\">%s</a></li>\n", urlPath, displayName)
 	}
 	rw.Write([]byte("</ul>\n"))
+	rw.Write([]byte(indexTailHTML))
 }
 
 // serveDateDirectoryListing 渲染 /date/{date}/{subpath}/ 虚拟目录。
@@ -799,7 +803,7 @@ func (r *renderer) serveDateDirectoryListing(rw http.ResponseWriter, req *http.R
 	}
 
 	rw.Write([]byte("</ul>\n"))
-	rw.Write([]byte(MDTemplateIndexTail))
+	rw.Write([]byte(indexTailHTML))
 }
 
 // serveDateList 渲染 /date/ 虚拟页，列出所有 Y-m-d 格式的日期。
@@ -848,7 +852,7 @@ func (r *renderer) serveDateList(rw http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(rw, "<li><a href=\"/date/%s/\">%s</a></li>\n", date, date)
 	}
 	rw.Write([]byte("</ul>\n"))
-	rw.Write([]byte(MDTemplateIndexTail))
+	rw.Write([]byte(indexTailHTML))
 }
 
 // beijingToday 返回北京时区（UTC+8）当天日期字符串 YYYY-MM-DD。
