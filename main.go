@@ -17,6 +17,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	goldmarkHTML "github.com/yuin/goldmark/renderer/html"
 )
 
 var listen = flag.String("listen", "127.0.0.1:10200", "listen host:port")
@@ -122,6 +123,7 @@ var md = goldmark.New(
 		extension.Linkify,     // URL 自动链接
 		extension.NewCJK(),    // CJK 换行优化
 	),
+	goldmark.WithRendererOptions(goldmarkHTML.WithUnsafe()),
 )
 
 var iconImageExtensions = []string{

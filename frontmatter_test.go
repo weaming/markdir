@@ -1,9 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
+
+func TestMarkdownRendersRawHTML(t *testing.T) {
+	var buf bytes.Buffer
+	if err := md.Convert([]byte(`<a id="toc_70"></a>`), &buf); err != nil {
+		t.Fatalf("render markdown: %v", err)
+	}
+
+	if got := buf.String(); !strings.Contains(got, `<a id="toc_70"></a>`) {
+		t.Fatalf("raw HTML anchor was not preserved: %s", got)
+	}
+}
 
 func TestSplitFrontMatter(t *testing.T) {
 	cases := []struct {
