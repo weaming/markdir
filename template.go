@@ -7,6 +7,7 @@ const MDTemplate = `
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ .Path }}</title>
     ` + themeHeadScript + `
+    ` + imageExportHead + `
     {{ if .HasCustomCSS }}<link rel="stylesheet" href="/index.css">{{ end }}
     <style>
       * {
@@ -24,6 +25,7 @@ const MDTemplate = `
 
       ` + themeDarkTypography + `
       ` + themeSelection + `
+      ` + imageExportCSS + `
 
       body {
         margin: 0;
@@ -446,9 +448,11 @@ const MDTemplate = `
   </head>
   <body>
     ` + themeButton + `
+    ` + imageExportButton + `
     <div class="markdown-body">
       {{.Body}}
     </div>
   ` + themeToggleScript + `
+  ` + imageExportScript + `
   </body>
 </html>`
