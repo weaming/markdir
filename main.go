@@ -89,11 +89,16 @@ func loadTOC(path string, extFilter []string) map[string]string {
 
 func main() {
 	flag.Parse()
+	mimeTypes, err := parseMIMETypes(nginxMIMETypes)
+	if err != nil {
+		log.Fatalf("cannot parse embedded nginx mime.types: %v", err)
+	}
 
 	httpdir := http.Dir(".")
 	handler := &renderer{
 		dir:            httpdir,
 		handler:        http.FileServer(httpdir),
+		mimeTypes:      mimeTypes,
 		reverse:        *reverseSort,
 		hideIcon:       *hideIcon,
 		columns:        *columns,
@@ -141,6 +146,7 @@ type mdTitleEntry struct {
 type renderer struct {
 	dir            http.Dir
 	handler        http.Handler
+	mimeTypes      map[string]string
 	reverse        bool
 	hideIcon       bool
 	columns        int
@@ -530,6 +536,7 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 		if err == nil && indexInfo.Mode().IsRegular() {
+			setFileContentType(rw, "index.html", r.mimeTypes)
 			r.handler.ServeHTTP(rw, req)
 			return
 		}
@@ -649,12 +656,13 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		rw.Header().Set("Content-Type", "text/plain; charset=UTF-8")
+		setFileContentType(rw, path, r.mimeTypes)
 		rw.Write(content)
 		return
 	}
 
 	// 6. Default: serve as is
+	setFileContentType(rw, path, r.mimeTypes)
 	r.handler.ServeHTTP(rw, req)
 }
 

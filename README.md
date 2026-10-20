@@ -25,6 +25,8 @@ The working directory is the document root. Directories serve `index.html` when 
 otherwise they show a file listing. `-no-index` disables listing but still allows the index page.
 The `/date/` virtual routes retain their existing behavior.
 
+Static file MIME types follow the embedded Nginx `mime.types` table; unknown extensions use `application/octet-stream`.
+
 `-size-dirs` matches only the specified directories, without recursion (`/` selects the root).
 File sizes use 1024-based units with one decimal place, such as `1.0 KiB` or `2.5 MiB`.
 Listings show filename, modification date (`YYYY-MM-DD HH:mm`), and right-aligned size;
