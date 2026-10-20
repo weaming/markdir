@@ -80,3 +80,10 @@ func setFileContentType(rw http.ResponseWriter, filePath string, mimeTypes map[s
 	}
 	rw.Header().Set("Content-Type", contentType)
 }
+
+func setDownloadDisposition(rw http.ResponseWriter, filePath string) {
+	switch strings.ToLower(filepath.Ext(filePath)) {
+	case ".apk", ".apks":
+		rw.Header().Set("Content-Disposition", "attachment")
+	}
+}

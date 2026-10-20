@@ -663,6 +663,7 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// 6. Default: serve as is
 	setFileContentType(rw, path, r.mimeTypes)
+	setDownloadDisposition(rw, path)
 	r.handler.ServeHTTP(rw, req)
 }
 

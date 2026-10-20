@@ -26,6 +26,7 @@ otherwise they show a file listing. `-no-index` disables listing but still allow
 The `/date/` virtual routes retain their existing behavior.
 
 Static file MIME types follow the embedded Nginx `mime.types` table; unknown extensions use `application/octet-stream`.
+APK and APKS files are served with `Content-Disposition: attachment` to trigger downloads.
 
 `-size-dirs` matches only the specified directories, without recursion (`/` selects the root).
 File sizes use 1024-based units with one decimal place, such as `1.0 KiB` or `2.5 MiB`.
