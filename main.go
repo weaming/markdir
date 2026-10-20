@@ -29,7 +29,7 @@ var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
 var columns = flag.Int("columns", 1, "number of columns for directory listing on desktop")
-var sizeDirs = flag.String("size-dirs", "", "comma separated URL directories to show file sizes (non-recursive), e.g. '/downloads/,/public/'")
+var indexDirs = flag.String("index-dirs", "", "comma separated URL directories to show file details, including subdirectories, e.g. '/downloads/,/public/'")
 var exts = flag.String("exts", "", "comma separated extensions to show in listing, e.g. 'json,md,jsonl' (dirs always shown)")
 var llms = flag.Bool("llms", false, "llms.txt style, see https://llmstxt.org")
 
@@ -102,7 +102,7 @@ func main() {
 		reverse:        *reverseSort,
 		hideIcon:       *hideIcon,
 		columns:        *columns,
-		sizeDirs:       parseSizeDirs(*sizeDirs),
+		indexDirs:      parseIndexDirs(*indexDirs),
 		exts:           parseExts(*exts),
 		ignore:         parseIgnore(*ignore),
 		llms:           *llms,
@@ -150,7 +150,7 @@ type renderer struct {
 	reverse        bool
 	hideIcon       bool
 	columns        int
-	sizeDirs       map[string]bool
+	indexDirs      map[string]bool
 	exts           []string
 	ignore         []string
 	llms           bool
@@ -667,7 +667,7 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	r.handler.ServeHTTP(rw, req)
 }
 
-func parseSizeDirs(raw string) map[string]bool {
+func parseIndexDirs(raw string) map[string]bool {
 	dirs := make(map[string]bool)
 	for _, dir := range strings.Split(raw, ",") {
 		dir = strings.TrimSpace(dir)
@@ -676,6 +676,19 @@ func parseSizeDirs(raw string) map[string]bool {
 		}
 	}
 	return dirs
+}
+
+func isIndexDir(path string, dirs map[string]bool) bool {
+	path = urlpath.Clean("/" + path)
+	if dirs[path] {
+		return true
+	}
+	for dir := range dirs {
+		if dir == "/" || strings.HasPrefix(path, dir+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func formatFileSize(size int64) string {
@@ -726,7 +739,7 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.Write([]byte(indexHead(req.URL.Path)))
 
-	hasDetails := r.sizeDirs[urlpath.Clean(req.URL.Path)]
+	hasDetails := isIndexDir(req.URL.Path, r.indexDirs)
 	location := time.UTC
 	listClass := "dir-list"
 	if hasDetails {

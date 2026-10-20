@@ -74,7 +74,7 @@ func TestDirectoryServing(t *testing.T) {
 	}
 	handler := &renderer{
 		handler:        http.FileServer(http.Dir(".")),
-		sizeDirs:       parseSizeDirs(" downloads/ , ,/other/../downloads "),
+		indexDirs:      parseIndexDirs(" downloads/ , ,/other/../downloads "),
 		gitignoreCache: make(map[string][]gitignoreEntry),
 	}
 	cases := []struct {

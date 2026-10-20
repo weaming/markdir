@@ -161,18 +161,20 @@ const MDTemplateIndex = `
         }
 
         .dir-details li {
-          gap: 8px;
+          flex-wrap: wrap;
+          gap: 0;
         }
 
         .dir-details a {
-          flex: 1 1 auto;
-          padding: 14px 0 14px 16px;
+          flex: 0 0 100%;
+          padding: 14px 16px 0;
         }
 
         .file-details {
           grid-template-columns: auto auto;
           gap: 8px;
-          padding-right: 16px;
+          margin-left: auto;
+          padding: 0 16px 14px;
         }
       }
 

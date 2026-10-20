@@ -17,8 +17,8 @@ Usage of markdir:
     	listen host:port (default "127.0.0.1:10200")
   -no-index string
     	comma separated list of directories to disable listing
-  -size-dirs string
-        comma separated URL directories to show file sizes, e.g. '/downloads/,/public/'
+  -index-dirs string
+        comma separated URL directories to show file details, e.g. '/downloads/,/public/'
 ```
 
 The working directory is the document root. Directories serve `index.html` when present;
@@ -28,10 +28,11 @@ The `/date/` virtual routes retain their existing behavior.
 Static file MIME types follow the embedded Nginx `mime.types` table; unknown extensions use `application/octet-stream`.
 APK and APKS files are served with `Content-Disposition: attachment` to trigger downloads.
 
-`-size-dirs` matches only the specified directories, without recursion (`/` selects the root).
+`-index-dirs` matches the specified directories and all their subdirectories (`/` selects the entire document tree).
 File sizes use 1024-based units with one decimal place, such as `1.0 KiB` or `2.5 MiB`.
 Listings show filename, modification date (`YYYY-MM-DD HH:mm`), and right-aligned size;
-only filenames are clickable. Dates use `TZ`, defaulting to UTC+8.
+only filenames are clickable. On mobile, date and size appear right-aligned on the second line.
+Dates use `TZ`, defaulting to UTC+8.
 Directories and symbolic links show a dash for size. Detailed listings use one column regardless of `-columns`.
 
 ### Customization
