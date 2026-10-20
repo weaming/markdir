@@ -30,6 +30,7 @@ var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.p
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
 var columns = flag.Int("columns", 1, "number of columns for directory listing on desktop")
 var indexDirs = flag.String("index-dirs", "", "comma separated URL directories to show file details, including subdirectories, e.g. '/downloads/,/public/'")
+var uploadDirs = flag.String("upload-dirs", "", "comma separated URL directories that accept PUT and POST uploads, e.g. '/uploads/'")
 var exts = flag.String("exts", "", "comma separated extensions to show in listing, e.g. 'json,md,jsonl' (dirs always shown)")
 var llms = flag.Bool("llms", false, "llms.txt style, see https://llmstxt.org")
 
@@ -103,6 +104,7 @@ func main() {
 		hideIcon:       *hideIcon,
 		columns:        *columns,
 		indexDirs:      parseIndexDirs(*indexDirs),
+		uploadDirs:     parseURLDirs(*uploadDirs),
 		exts:           parseExts(*exts),
 		ignore:         parseIgnore(*ignore),
 		llms:           *llms,
@@ -151,6 +153,7 @@ type renderer struct {
 	hideIcon       bool
 	columns        int
 	indexDirs      map[string]bool
+	uploadDirs     map[string]bool
 	exts           []string
 	ignore         []string
 	llms           bool
@@ -459,6 +462,10 @@ var codeExtensions = []string{
 
 func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
+	if req.Method == http.MethodPut || req.Method == http.MethodPost {
+		r.serveUpload(rw, req)
+		return
+	}
 
 	// 1. Handle /llms.txt virtual endpoint
 	if r.llms && path == "/llms.txt" {
@@ -668,6 +675,10 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 }
 
 func parseIndexDirs(raw string) map[string]bool {
+	return parseURLDirs(raw)
+}
+
+func parseURLDirs(raw string) map[string]bool {
 	dirs := make(map[string]bool)
 	for _, dir := range strings.Split(raw, ",") {
 		dir = strings.TrimSpace(dir)

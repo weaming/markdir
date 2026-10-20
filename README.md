@@ -19,6 +19,8 @@ Usage of markdir:
     	comma separated list of directories to disable listing
   -index-dirs string
         comma separated URL directories to show file details, e.g. '/downloads/,/public/'
+  -upload-dirs string
+        comma separated URL directories that accept PUT and POST uploads, e.g. '/uploads/'
 ```
 
 The working directory is the document root. Directories serve `index.html` when present;
@@ -34,6 +36,9 @@ Listings show filename, modification date (`YYYY-MM-DD HH:mm`), and right-aligne
 only filenames are clickable. On mobile, date and size appear right-aligned on the second line.
 Dates use `TZ`, defaulting to UTC+8.
 Directories and symbolic links show a dash for size. Detailed listings use one column regardless of `-columns`.
+
+`-upload-dirs` enables raw-body PUT and POST uploads to the specified URL directories and their subdirectories.
+Missing subdirectories are created; uploads replace existing regular files.
 
 ### Customization
 
