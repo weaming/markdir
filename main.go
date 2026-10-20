@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	urlpath "path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -28,6 +29,7 @@ var reverseSort = flag.Bool("reverse", false, "reverse file name sort order")
 var hideIcon = flag.Bool("hide-icon", false, "hide icon image files (e.g. icon.png, icon.jpg) from directory listing")
 var tocFile = flag.String("toc", "", "path to JSON file mapping URL paths to friendly display names")
 var columns = flag.Int("columns", 1, "number of columns for directory listing on desktop")
+var sizeDirs = flag.String("size-dirs", "", "comma separated URL directories to show file sizes (non-recursive), e.g. '/downloads/,/public/'")
 var exts = flag.String("exts", "", "comma separated extensions to show in listing, e.g. 'json,md,jsonl' (dirs always shown)")
 var llms = flag.Bool("llms", false, "llms.txt style, see https://llmstxt.org")
 
@@ -95,6 +97,7 @@ func main() {
 		reverse:        *reverseSort,
 		hideIcon:       *hideIcon,
 		columns:        *columns,
+		sizeDirs:       parseSizeDirs(*sizeDirs),
 		exts:           parseExts(*exts),
 		ignore:         parseIgnore(*ignore),
 		llms:           *llms,
@@ -141,6 +144,7 @@ type renderer struct {
 	reverse        bool
 	hideIcon       bool
 	columns        int
+	sizeDirs       map[string]bool
 	exts           []string
 	ignore         []string
 	llms           bool
@@ -438,9 +442,9 @@ func indexHead(urlPath string) string {
 
 var codeExtensions = []string{
 	".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv",
-	".json", ".jsonl", ".yaml", ".yml", ".cxx", ".h", ".html", ".ini", ".java", ".js", ".jsp",
+	".json", ".jsonl", ".yaml", ".yml", ".cxx", ".h", ".ini", ".java", ".jsp",
 	".log", ".map", ".mod", ".sh", ".bash", ".txt", ".xml", ".py", ".go", ".rs",
-	".coffee", ".conf", ".config", ".cr", ".css", ".d", ".dart", ".fish", ".gradle",
+	".coffee", ".conf", ".config", ".cr", ".d", ".dart", ".fish", ".gradle",
 	".jade", ".json5", ".jsx", ".key", ".less", ".m4", ".markdown", ".md", ".patch",
 	".pem", ".plist", ".properties", ".pub", ".pug", ".rb", ".rc", ".sass", ".scpt",
 	".scss", ".sql", ".template", ".todo", ".toml", ".ts", ".tsx", ".vim", ".vue",
@@ -510,18 +514,30 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// 2. Check for directory
 	if isDir(req) {
 		log.Println(path)
-		if isNoIndex(path) {
-			rw.Header().Set("Content-Type", "text/html; charset=utf-8")
-			rw.Write([]byte("<h3>Current directory does not support listing</h3>"))
-			return
-		}
-
 		name := filepath.Base(path)
 		if len(name) >= 2 && name[0] == '.' && name[1] != '.' {
 			if !*showHidden {
 				http.Error(rw, "not found", 404)
 				return
 			}
+		}
+
+		indexPath := filepath.Join("."+path, "index.html")
+		indexInfo, err := os.Stat(indexPath)
+		if err != nil && !os.IsNotExist(err) {
+			log.Printf("Cannot stat index %s: %v", indexPath, err)
+			http.Error(rw, "cannot access directory index", http.StatusInternalServerError)
+			return
+		}
+		if err == nil && indexInfo.Mode().IsRegular() {
+			r.handler.ServeHTTP(rw, req)
+			return
+		}
+
+		if isNoIndex(path) {
+			rw.Header().Set("Content-Type", "text/html; charset=utf-8")
+			rw.Write([]byte("<h3>Current directory does not support listing</h3>"))
+			return
 		}
 
 		if r.reverse {
@@ -642,6 +658,41 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	r.handler.ServeHTTP(rw, req)
 }
 
+func parseSizeDirs(raw string) map[string]bool {
+	dirs := make(map[string]bool)
+	for _, dir := range strings.Split(raw, ",") {
+		dir = strings.TrimSpace(dir)
+		if dir != "" {
+			dirs[urlpath.Clean("/"+dir)] = true
+		}
+	}
+	return dirs
+}
+
+func formatFileSize(size int64) string {
+	units := [...]string{"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"}
+	value := float64(size)
+	unit := 0
+	for value >= 1024 && unit < len(units)-1 {
+		value /= 1024
+		unit++
+	}
+	return fmt.Sprintf("%.1f %s", value, units[unit])
+}
+
+func listingTimezone() *time.Location {
+	zone := os.Getenv("TZ")
+	if zone == "" {
+		return time.FixedZone("HKT", 8*60*60)
+	}
+	location, err := time.LoadLocation(zone)
+	if err != nil {
+		log.Printf("Cannot load timezone %q, using UTC+8: %v", zone, err)
+		return time.FixedZone("HKT", 8*60*60)
+	}
+	return location
+}
+
 // serveDirectoryListing 渲染目录索引页。目录读取失败时在写入任何响应体之前
 // 返回错误，避免在已输出的页面上二次写 header。
 func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Request, reverse bool) {
@@ -666,10 +717,17 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.Write([]byte(indexHead(req.URL.Path)))
 
-	if r.columns > 1 {
+	hasDetails := r.sizeDirs[urlpath.Clean(req.URL.Path)]
+	location := time.UTC
+	listClass := "dir-list"
+	if hasDetails {
+		listClass += " dir-details"
+		location = listingTimezone()
+	}
+	if r.columns > 1 && !hasDetails {
 		fmt.Fprintf(rw, "<style>@media(min-width:601px){.dir-list{display:grid;grid-template-columns:repeat(%d,1fr);}}</style>\n", r.columns)
 	}
-	rw.Write([]byte("<ul class=\"dir-list\">\n"))
+	fmt.Fprintf(rw, "<ul class=\"%s\">\n", listClass)
 	for _, entry := range entries {
 		name := entry.Name()
 		displayName := name
@@ -706,7 +764,24 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 		if label, ok := r.getTOC(urlPath); ok {
 			displayName = label
 		}
-		fmt.Fprintf(rw, "<li><a href=\"%s\">%s</a></li>\n", urlPath, displayName)
+		detailsHTML := ""
+		if hasDetails {
+			size := "—"
+			modifiedHTML := `<span class="file-modified">—</span>`
+			info, err := entry.Info()
+			if err != nil {
+				log.Printf("Cannot read file metadata %s: %v", filepath.Join(fullPath, entry.Name()), err)
+			} else {
+				modified := info.ModTime().In(location)
+				modifiedHTML = fmt.Sprintf(`<time class="file-modified" datetime="%s" title="%s">%s</time>`,
+					modified.Format(time.RFC3339), modified.Format(time.RFC3339), modified.Format("2006-01-02 15:04"))
+				if info.Mode().IsRegular() {
+					size = formatFileSize(info.Size())
+				}
+			}
+			detailsHTML = `<span class="file-details">` + modifiedHTML + `<span class="file-size">` + size + `</span></span>`
+		}
+		fmt.Fprintf(rw, "<li><a href=\"%s\">%s</a>%s</li>\n", template.HTMLEscapeString(urlPath), template.HTMLEscapeString(displayName), detailsHTML)
 	}
 	rw.Write([]byte("</ul>\n"))
 	rw.Write([]byte(indexTailHTML))
