@@ -214,6 +214,8 @@ const MDTemplate = `
         width: 2ch;
       }
 
+      ` + mermaidCSS + `
+
       .markdown-body table {
         display: block;
         width: 100%;
@@ -357,6 +359,10 @@ const MDTemplate = `
           padding: 0 12px;
         }
 
+        .markdown-body .mermaid-diagram {
+          margin: 0 0 16px;
+        }
+
         .markdown-body table {
           display: block;
           overflow-x: auto;
@@ -422,6 +428,11 @@ const MDTemplate = `
           word-wrap: break-word;
         }
 
+        .markdown-body .mermaid-diagram {
+          page-break-inside: avoid;
+          background: transparent;
+        }
+
         .markdown-body h1,
         .markdown-body h2,
         .markdown-body h3 {
@@ -473,6 +484,7 @@ const MDTemplate = `
   ` + themeToggleScript + `
   ` + imageExportScript + `
   ` + codeCellScript + `
+  ` + mermaidScript + `
   </body>
 </html>`
 

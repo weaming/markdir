@@ -1,6 +1,6 @@
 package main
 
-const imageExportHead = `<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>`
+const imageExportHead = `<script src="/-/html-to-image.js?v=` + htmlToImageVersion + `"></script>`
 
 const imageExportCSS = `
       .image-export {
@@ -68,11 +68,16 @@ const imageExportScript = `<script>
           return name.replace(/\.md$/i, "") + ".png";
         }
 
+        // 等待 mermaid 渲染完成，否则截图里会缺少图表
+        function waitForDiagrams() {
+          return window.markdirMermaidReady || Promise.resolve();
+        }
+
         async function exportImage() {
           if (!window.htmlToImage) {
             throw new Error("PNG 导出组件加载失败，请检查网络连接");
           }
-          await Promise.all([document.fonts.ready, waitForImages()]);
+          await Promise.all([document.fonts.ready, waitForImages(), waitForDiagrams()]);
           var dataUrl = await window.htmlToImage.toPng(target, {
             cacheBust: true,
             pixelRatio: 2,

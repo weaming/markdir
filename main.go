@@ -474,6 +474,12 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// 内嵌前端资源（mermaid 等），优先于文档目录
+	if strings.HasPrefix(path, "/-/") {
+		serveAsset(rw, req)
+		return
+	}
+
 	// 2. Handle /date/ virtual paths
 	if path == "/date" {
 		http.Redirect(rw, req, "/date/", http.StatusMovedPermanently)

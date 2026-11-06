@@ -32,6 +32,9 @@ const themeLightVars = `
         --hover-purple-bg: #f5f0ff;
         --divider: #f0f0f0;
         --selection-bg: rgba(3,102,214,0.18);
+        --diagram-node-bg: #ffffff;
+        --diagram-node-border: #d8dee4;
+        --diagram-line: #a5adb8;
       `
 
 const themeDarkVars = `
@@ -61,6 +64,9 @@ const themeDarkVars = `
         --hover-purple-bg: rgba(188,140,255,0.15);
         --divider: #21262d;
         --selection-bg: rgba(88,166,255,0.28);
+        --diagram-node-bg: #1b2129;
+        --diagram-node-border: #3d444d;
+        --diagram-line: #6e7681;
       `
 
 // themeDarkTypography tunes glyph rendering for light-on-dark reading. Bright

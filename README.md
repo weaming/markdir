@@ -40,6 +40,12 @@ Directories and symbolic links show a dash for size. Detailed listings use one c
 `-upload-dirs` enables raw-body PUT and POST uploads to the specified URL directories and their subdirectories.
 Missing subdirectories are created; uploads replace existing regular files.
 
+Fenced code blocks tagged `mermaid` are rendered as SVG diagrams (flowchart, sequence, and the rest of Mermaid) in the browser.
+Mermaid and the PNG exporter are embedded in the binary and served from `/-/mermaid.min.js` and `/-/html-to-image.js`
+with a one-year immutable cache; the mermaid script is only requested by pages that contain diagrams, so diagrams work offline.
+Diagrams are re-rendered when the theme changes, and invalid diagram syntax leaves the original code block in place.
+Diagram colors follow the page theme (`--diagram-*` in `theme.go`): rounded nodes, hairline edges, and no background box.
+
 ### Customization
 
 You can place an `index.css` file in the root directory being served. If present, it will be included in all pages to allow for custom styling.
