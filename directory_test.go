@@ -31,6 +31,15 @@ func TestFormatFileSize(t *testing.T) {
 	}
 }
 
+func testMIMETypes(t *testing.T) map[string]string {
+	t.Helper()
+	mimeTypes, err := parseMIMETypes(nginxMIMETypes)
+	if err != nil {
+		t.Fatalf("parse embedded mime.types: %v", err)
+	}
+	return mimeTypes
+}
+
 func TestDirectoryServing(t *testing.T) {
 	t.Setenv("TZ", "Asia/Hong_Kong")
 	originalDir, err := os.Getwd()
@@ -74,6 +83,7 @@ func TestDirectoryServing(t *testing.T) {
 	}
 	handler := &renderer{
 		handler:        http.FileServer(http.Dir(".")),
+		mimeTypes:      testMIMETypes(t),
 		indexDirs:      parseIndexDirs(" downloads/ , ,/other/../downloads "),
 		gitignoreCache: make(map[string][]gitignoreEntry),
 	}
@@ -134,6 +144,57 @@ func TestDirectoryServing(t *testing.T) {
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/downloads/", nil))
 	if !strings.Contains(recorder.Body.String(), "does not support listing") {
 		t.Fatal("directory listing should be disabled")
+	}
+}
+
+func TestFileContentType(t *testing.T) {
+	mimeTypes := testMIMETypes(t)
+	dir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalDir); err != nil {
+			t.Error(err)
+		}
+	})
+
+	for _, test := range []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{name: "notes.txt", content: "hello\n", want: "text/plain; charset=utf-8"},
+		{name: "data.json", content: "{\"a\": 1}\n", want: "application/json"},
+		{name: "app.js", content: "console.log(1)\n", want: "application/javascript"},
+		{name: "style.css", content: "body { color: red; }\n", want: "text/css; charset=utf-8"},
+		{name: "index.html", content: "<h1>home</h1>\n", want: "text/html; charset=utf-8"},
+		{name: "conf.yaml", content: "key: value\n", want: "text/plain; charset=utf-8"},
+		{name: "Makefile", content: "all:\n\techo hi\n", want: "text/plain; charset=utf-8"},
+		{name: "script.zshrc", content: "alias ll='ls -l'\n", want: "text/plain; charset=utf-8"},
+		{name: "main.go", content: "package main\n", want: "text/plain; charset=utf-8"},
+		{name: "data.csv", content: "a,b\n1,2\n", want: "text/plain; charset=utf-8"},
+		{name: "app.log", content: "started\n", want: "text/plain; charset=utf-8"},
+		{name: "archive.zip", content: "PK\x03\x04binary", want: "application/zip"},
+		{name: "photo.png", content: "\x89PNG\r\n\x1a\n", want: "image/png"},
+		{name: "font.woff2", content: "wOF2\x00\x00", want: "font/woff2"},
+		{name: "blob.bin", content: "\x00\x01\x02\x03", want: "application/octet-stream"},
+		{name: "blob.unknownext", content: "plain text here\n", want: "text/plain; charset=utf-8"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := os.WriteFile(test.name, []byte(test.content), 0644); err != nil {
+				t.Fatal(err)
+			}
+			recorder := httptest.NewRecorder()
+			setFileContentType(recorder, "/"+test.name, mimeTypes)
+			if got := recorder.Header().Get("Content-Type"); got != test.want {
+				t.Fatalf("%s Content-Type = %q, want %q", test.name, got, test.want)
+			}
+		})
 	}
 }
 

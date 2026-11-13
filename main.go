@@ -449,17 +449,6 @@ func indexHead(urlPath string) string {
 	return head
 }
 
-var codeExtensions = []string{
-	".a", ".asm", ".asp", ".awk", ".bat", ".c", ".class", ".cmd", ".cpp", ".csv",
-	".json", ".jsonl", ".yaml", ".yml", ".cxx", ".h", ".ini", ".java", ".jsp",
-	".log", ".map", ".mod", ".sh", ".bash", ".txt", ".xml", ".py", ".go", ".rs",
-	".coffee", ".conf", ".config", ".cr", ".d", ".dart", ".fish", ".gradle",
-	".jade", ".json5", ".jsx", ".key", ".less", ".m4", ".markdown", ".md", ".patch",
-	".pem", ".plist", ".properties", ".pub", ".pug", ".rb", ".rc", ".sass", ".scpt",
-	".scss", ".sql", ".template", ".todo", ".toml", ".ts", ".tsx", ".vim", ".vue",
-	".xhtml",
-}
-
 func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 	if req.Method == http.MethodPut || req.Method == http.MethodPost {
@@ -659,22 +648,7 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// 5. Handle Code files
-	if hasSuffix(path, codeExtensions) {
-		log.Println(path)
-		content, err := os.ReadFile("." + path)
-		if err != nil {
-			http.Error(rw, "not found", 404)
-			log.Printf("Couldn't read path %s: %v\n", path, err)
-			return
-		}
-
-		setFileContentType(rw, path, r.mimeTypes)
-		rw.Write(content)
-		return
-	}
-
-	// 6. Default: serve as is
+	// 5. Default: serve as is
 	setFileContentType(rw, path, r.mimeTypes)
 	setDownloadDisposition(rw, path)
 	r.handler.ServeHTTP(rw, req)

@@ -27,7 +27,11 @@ The working directory is the document root. Directories serve `index.html` when 
 otherwise they show a file listing. `-no-index` disables listing but still allows the index page.
 The `/date/` virtual routes retain their existing behavior.
 
-Static file MIME types follow the embedded Nginx `mime.types` table; unknown extensions use `application/octet-stream`.
+Static file MIME types follow the embedded Nginx `mime.types` table; unmapped extensions use `application/octet-stream`.
+Files whose first 512 bytes sniff as text are served as `text/plain; charset=utf-8` so browsers display them inline
+instead of downloading — source code, configs, `.yaml`, `.csv`, `.log` and extensionless files are all covered.
+Types the browser already renders inline (`text/*`, `image/*`, `audio/*`, `video/*`, `font/*`, JSON, XML, JS)
+keep their table type so pages, stylesheets and images keep working.
 APK and APKS files are served with `Content-Disposition: attachment` to trigger downloads.
 
 `-index-dirs` matches the specified directories and all their subdirectories (`/` selects the entire document tree).
