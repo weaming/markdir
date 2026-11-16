@@ -43,6 +43,7 @@ Directories and symbolic links show a dash for size. Detailed listings use one c
 
 `-upload-dirs` enables raw-body PUT and POST uploads to the specified URL directories and their subdirectories.
 Missing subdirectories are created; uploads replace existing regular files.
+Enabled directory listings include an upload button for selecting photos or files, with multiple selection and upload progress.
 
 Fenced code blocks tagged `mermaid` are rendered as SVG diagrams (flowchart, sequence, and the rest of Mermaid) in the browser.
 Mermaid and the PNG exporter are embedded in the binary and served from `/-/mermaid.min.js` and `/-/html-to-image.js`

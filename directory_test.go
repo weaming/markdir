@@ -85,6 +85,7 @@ func TestDirectoryServing(t *testing.T) {
 		handler:        http.FileServer(http.Dir(".")),
 		mimeTypes:      testMIMETypes(t),
 		indexDirs:      parseIndexDirs(" downloads/ , ,/other/../downloads "),
+		uploadDirs:     parseURLDirs("/downloads/"),
 		gitignoreCache: make(map[string][]gitignoreEntry),
 	}
 	cases := []struct {
@@ -98,7 +99,7 @@ func TestDirectoryServing(t *testing.T) {
 		{"/site", 301, "", false},
 		{"/site/index.html", 301, "", false},
 		{"/downloads/", 200, "1.5 KiB", true},
-		{"/downloads/child/", 200, "file.bin", false},
+		{"/downloads/child/", 200, "file.bin", true},
 		{"/other/", 200, "file.bin", false},
 		{"/listing/", 200, "index.html/", false},
 	}
@@ -114,12 +115,16 @@ func TestDirectoryServing(t *testing.T) {
 				t.Errorf("file size present = %v, want %v", got, test.hasSize)
 			}
 			if test.hasSize {
-				want := `file.bin</a><time class="file-modified" datetime="2026-10-20T10:30:00+08:00" title="2026-10-20T10:30:00+08:00">2026-10-20 10:30</time><span class="file-size">1.5 KiB</span>`
-				if !strings.Contains(body, want) {
+				want := `file.bin</a><span class="file-details"><time class="file-modified" datetime="2026-10-20T10:30:00+08:00" title="2026-10-20T10:30:00+08:00">2026-10-20 10:30</time><span class="file-size">1.5 KiB</span>`
+				if test.path == "/downloads/" && !strings.Contains(body, want) {
 					t.Error("expected modification date and size outside filename link")
 				}
 			} else if strings.Contains(body, `<time class="file-modified"`) {
 				t.Error("unexpected modification date in basic listing")
+			}
+			wantUpload := strings.HasPrefix(test.path, "/downloads/")
+			if hasUpload := strings.Contains(body, `id="upload-button"`); hasUpload != wantUpload {
+				t.Errorf("upload button present = %v, want %v", hasUpload, wantUpload)
 			}
 		})
 	}

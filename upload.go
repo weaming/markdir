@@ -12,6 +12,73 @@ import (
 	urlpath "path"
 )
 
+const directoryUploadHTML = `
+<style>
+.upload-tools{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.upload-button{flex:0 0 auto;white-space:nowrap;font:inherit;font-size:14px;min-height:44px;padding:4px 12px;border:1px solid var(--btn-border);border-radius:6px;color:var(--link);background:var(--card-bg);cursor:pointer}
+.upload-button:disabled{opacity:.6;cursor:wait}
+.upload-button:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.upload-status{flex:1;min-width:0;font-size:14px;overflow-wrap:anywhere}
+.upload-status:empty{display:none}
+@media(max-width:600px){.upload-tools{flex-wrap:wrap;gap:8px;padding:0 16px}.upload-status{flex-basis:100%}}
+@media print{.upload-tools{display:none}}
+</style>
+<div class="upload-tools">
+  <button type="button" class="upload-button" id="upload-button">↑ 上传</button>
+  <input type="file" id="upload-files" multiple hidden>
+  <span class="upload-status" id="upload-status" role="status" aria-live="polite"></span>
+</div>
+<script>
+(function () {
+  const button = document.getElementById('upload-button');
+  const picker = document.getElementById('upload-files');
+  const status = document.getElementById('upload-status');
+  button.addEventListener('click', function () { picker.click(); });
+  picker.addEventListener('change', async function () {
+    const files = Array.from(picker.files);
+    if (!files.length) return;
+    button.disabled = true;
+    let completed = 0;
+    try {
+      for (const file of files) {
+        if (!file.name || file.name === '.' || file.name === '..' || /[/\\]/.test(file.name)) {
+          throw new Error('无效文件名');
+        }
+        status.textContent = '上传 ' + (completed + 1) + '/' + files.length + '：' + file.name;
+        const target = new URL(window.location.href);
+        target.search = '';
+        target.hash = '';
+        target.pathname = target.pathname.replace(/\/?$/, '/') + encodeURIComponent(file.name);
+        await new Promise(function (resolve, reject) {
+          const request = new XMLHttpRequest();
+          request.open('PUT', target.href);
+          request.upload.onprogress = function (event) {
+            if (event.lengthComputable) {
+              status.textContent = '上传 ' + (completed + 1) + '/' + files.length + '：' + file.name + ' ' + Math.round(event.loaded / event.total * 100) + '%';
+            }
+          };
+          request.onload = function () {
+            if (request.status >= 200 && request.status < 300) resolve();
+            else reject(new Error(file.name + '：' + (request.responseText.trim() || 'HTTP ' + request.status)));
+          };
+          request.onerror = function () { reject(new Error(file.name + '：网络错误，请重试')); };
+          request.onabort = function () { reject(new Error(file.name + '：上传已取消')); };
+          request.send(file);
+        });
+        completed++;
+      }
+      window.location.reload();
+    } catch (error) {
+      status.textContent = '已上传 ' + completed + '/' + files.length + '；' + error.message;
+    } finally {
+      button.disabled = false;
+      picker.value = '';
+    }
+  });
+})();
+</script>
+`
+
 func (r *renderer) serveUpload(rw http.ResponseWriter, req *http.Request) {
 	if len(r.uploadDirs) == 0 {
 		http.Error(rw, "uploads are disabled", http.StatusForbidden)

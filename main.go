@@ -729,6 +729,9 @@ func (r *renderer) serveDirectoryListing(rw http.ResponseWriter, req *http.Reque
 
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rw.Write([]byte(indexHead(req.URL.Path)))
+	if isIndexDir(req.URL.Path, r.uploadDirs) {
+		rw.Write([]byte(directoryUploadHTML))
+	}
 
 	hasDetails := isIndexDir(req.URL.Path, r.indexDirs)
 	location := time.UTC
