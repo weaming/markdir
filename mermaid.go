@@ -1,24 +1,32 @@
 package main
 
 // Mermaid support turns ```mermaid fenced code blocks into SVG diagrams in the
-// browser. The library is fetched from a CDN only on pages that actually
-// contain diagrams, rendering degrades to the original code block when the CDN
-// is unreachable, and diagrams are re-rendered when the page theme changes.
+// browser. The embedded library is loaded on demand, and diagrams are
+// re-rendered when the page theme changes.
 
 const mermaidCSS = `
       .markdown-body .mermaid-diagram {
         margin: 0 0 20px;
         padding: 4px 0;
         text-align: center;
+        overflow-x: auto;
       }
 
       .markdown-body .mermaid-diagram[hidden] {
         display: none;
       }
 
-      .markdown-body .mermaid-diagram svg {
+      .markdown-body .mermaid-diagram > svg {
+        display: block;
+        margin-inline: auto;
         max-width: 100%;
         height: auto;
+      }
+
+      @media screen {
+        .markdown-body:not(.is-exporting-image) .mermaid-diagram > svg {
+          min-width: var(--diagram-min-width, 0px);
+        }
       }
 `
 
@@ -127,9 +135,10 @@ const mermaidScript = `<script>
           htmlLabels: false,
           useMaxWidth: true,
           curve: "basis",
-          nodeSpacing: 42,
-          rankSpacing: 44,
-          padding: 14,
+          nodeSpacing: 28,
+          rankSpacing: 36,
+          padding: 12,
+          wrappingWidth: 260,
         },
         sequence: { useMaxWidth: true },
         gantt: { useMaxWidth: true },
@@ -149,6 +158,11 @@ const mermaidScript = `<script>
         .render(id, item.source)
         .then(function (result) {
           item.holder.innerHTML = result.svg;
+          var svg = item.holder.firstElementChild;
+          var viewBox = svg && svg.viewBox && svg.viewBox.baseVal;
+          if (viewBox && viewBox.width > 0) {
+            svg.style.setProperty("--diagram-min-width", viewBox.width * 0.85 + "px");
+          }
           item.holder.hidden = false;
           item.pre.hidden = true;
           item.rendered = true;

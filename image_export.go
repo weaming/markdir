@@ -78,12 +78,18 @@ const imageExportScript = `<script>
             throw new Error("PNG 导出组件加载失败，请检查网络连接");
           }
           await Promise.all([document.fonts.ready, waitForImages(), waitForDiagrams()]);
-          var dataUrl = await window.htmlToImage.toPng(target, {
-            cacheBust: true,
-            pixelRatio: 2,
-            skipAutoScale: true,
-            style: { margin: "0" },
-          });
+          target.classList.add("is-exporting-image");
+          var dataUrl;
+          try {
+            dataUrl = await window.htmlToImage.toPng(target, {
+              cacheBust: true,
+              pixelRatio: 2,
+              skipAutoScale: true,
+              style: { margin: "0" },
+            });
+          } finally {
+            target.classList.remove("is-exporting-image");
+          }
           var link = document.createElement("a");
           link.download = fileName();
           link.href = dataUrl;
