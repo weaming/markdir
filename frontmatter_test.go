@@ -66,6 +66,30 @@ func TestSplitFrontMatter(t *testing.T) {
 			wantYAML: "title: Hi\r\n",
 			wantBody: "body\r\n",
 		},
+		{
+			name:     "toml block",
+			src:      "+++\ntitle       = \"Anthropic（ANT）IPO\"\ndate        = 2026-11-20T02:26:05+08:00\ndraft       = false\n+++\n\nbody\n",
+			wantYAML: "title       = \"Anthropic（ANT）IPO\"\ndate        = 2026-11-20T02:26:05+08:00\ndraft       = false\n",
+			wantBody: "\nbody\n",
+		},
+		{
+			name:     "toml bom and crlf",
+			src:      "\ufeff+++\r\ntitle = \"Hi\"\r\n+++\r\nbody\r\n",
+			wantYAML: "title = \"Hi\"\r\n",
+			wantBody: "body\r\n",
+		},
+		{
+			name:     "toml unterminated is untouched",
+			src:      "+++\ntitle = \"Hi\"\n# Heading\n",
+			wantYAML: "",
+			wantBody: "+++\ntitle = \"Hi\"\n# Heading\n",
+		},
+		{
+			name:     "empty plus delimiters are not front matter",
+			src:      "+++\n\n+++\n\ntext\n",
+			wantYAML: "",
+			wantBody: "+++\n\n+++\n\ntext\n",
+		},
 	}
 
 	for _, tc := range cases {
@@ -103,7 +127,7 @@ func TestFrontMatterTable(t *testing.T) {
 
 	table := frontMatterTable("name: web-design\ndescription: a skill\n")
 	for _, want := range []string{
-		"<table>", "<tbody>",
+		`<table class="frontmatter">`, "<tbody>",
 		"<th>name</th>", "<td>web-design</td>",
 		"<th>description</th>", "<td>a skill</td>",
 	} {
@@ -127,5 +151,70 @@ func TestFrontMatterTableEscapesAndFolds(t *testing.T) {
 	}
 	if !strings.Contains(table, "<td>a<br>b</td>") {
 		t.Errorf("list items should fold into one <br>-joined cell, got: %s", table)
+	}
+}
+
+func TestTOMLFrontMatterValueAndTable(t *testing.T) {
+	src := strings.Join([]string{
+		"+++",
+		`title       = "Anthropic（ANT）IPO 股权图解：谁持股，谁投票，谁选董事？"`,
+		`date        = 2026-11-20T02:26:05+08:00`,
+		`author      = "weaming"`,
+		`description = ""`,
+		`tags        = ["AI", "MCP", "工具, 开源"]`,
+		`categories  = []`,
+		`draft       = false # inline comment`,
+		`toc         = true`,
+		`multi       = [`,
+		`  "one",`,
+		`  "two",`,
+		`]`,
+		`[params]`,
+		`note        = "<b>safe</b>"`,
+		"+++",
+		"",
+		"正文内容",
+	}, "\n")
+
+	fm, body := splitFrontMatter([]byte(src))
+	if fm == "" {
+		t.Fatal("expected TOML front matter to be parsed")
+	}
+	if strings.TrimSpace(string(body)) != "正文内容" {
+		t.Fatalf("unexpected body: %q", string(body))
+	}
+
+	wantValues := map[string]string{
+		"title":       "Anthropic（ANT）IPO 股权图解：谁持股，谁投票，谁选董事？",
+		"date":        "2026-11-20T02:26:05+08:00",
+		"author":      "weaming",
+		"description": "",
+		"tags":        "AI, MCP, 工具, 开源",
+		"categories":  "",
+		"draft":       "false",
+		"toc":         "true",
+		"multi":       "one, two",
+		"params.note": "<b>safe</b>",
+		"absent":      "",
+	}
+	for k, want := range wantValues {
+		if got := frontMatterValue(fm, k); got != want {
+			t.Errorf("frontMatterValue(%q) = %q, want %q", k, got, want)
+		}
+	}
+
+	table := frontMatterTable(fm)
+	for _, want := range []string{
+		"<th>title</th>\n<td>Anthropic（ANT）IPO 股权图解：谁持股，谁投票，谁选董事？</td>",
+		"<th>date</th>\n<td>2026-11-20T02:26:05+08:00</td>",
+		"<th>tags</th>\n<td>AI, MCP, 工具, 开源</td>",
+		"<th>categories</th>\n<td></td>",
+		"<th>draft</th>\n<td>false</td>",
+		"<th>multi</th>\n<td>one, two</td>",
+		"<th>params.note</th>\n<td>&lt;b&gt;safe&lt;/b&gt;</td>",
+	} {
+		if !strings.Contains(table, want) {
+			t.Errorf("table missing %q\ngot:\n%s", want, table)
+		}
 	}
 }

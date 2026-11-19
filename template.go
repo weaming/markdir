@@ -245,6 +245,23 @@ const MDTemplate = `
         background-color: var(--table-alt-bg);
       }
 
+      .markdown-body table.frontmatter {
+        display: table;
+        width: 100%;
+      }
+
+      .markdown-body table.frontmatter th {
+        width: 1%;
+        white-space: nowrap;
+        text-align: right;
+        vertical-align: top;
+        background-color: transparent;
+      }
+
+      .markdown-body table.frontmatter td {
+        overflow-wrap: anywhere;
+      }
+
       .markdown-body img {
         max-width: 100%;
         box-sizing: content-box;

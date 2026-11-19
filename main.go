@@ -620,9 +620,9 @@ func (r *renderer) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			log.Printf("Couldn't read path %s: %v\n", path, err)
 			return
 		}
-		yaml, body := splitFrontMatter(input)
+		fm, body := splitFrontMatter(input)
 		var buf bytes.Buffer
-		if table := frontMatterTable(yaml); table != "" {
+		if table := frontMatterTable(fm); table != "" {
 			buf.WriteString(table)
 		}
 		if err := md.Convert(body, &buf); err != nil {
@@ -976,8 +976,8 @@ func readMDTitle(filePath string) string {
 	if err != nil {
 		return ""
 	}
-	yaml, body := splitFrontMatter(data)
-	if title := frontMatterValue(yaml, "title"); title != "" {
+	fm, body := splitFrontMatter(data)
+	if title := frontMatterValue(fm, "title"); title != "" {
 		return title
 	}
 	for _, line := range strings.Split(string(body), "\n") {
